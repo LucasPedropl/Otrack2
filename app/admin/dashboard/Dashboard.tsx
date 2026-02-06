@@ -3,7 +3,7 @@ import { AdminLayout } from '../../../components/layout/AdminLayout';
 import { inventoryService } from '../../../services/inventoryService';
 import { InventoryItem } from '../../../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { AlertTriangle, Package, TrendingUp, DollarSign } from 'lucide-react';
+import { AlertTriangle, Package, TrendingUp, DollarSign, Loader2 } from 'lucide-react';
 import { useTheme } from '../../../contexts/ThemeContext';
 
 const StatCard: React.FC<{
@@ -38,6 +38,7 @@ const StatCard: React.FC<{
 
 const DashboardPage: React.FC = () => {
   const [items, setItems] = useState<InventoryItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const { currentTheme } = useTheme();
 
   useEffect(() => {
@@ -47,6 +48,8 @@ const DashboardPage: React.FC = () => {
         setItems(data);
       } catch (error) {
         console.error("Failed to fetch inventory", error);
+      } finally {
+        setIsLoading(false);
       }
     };
     fetchItems();
@@ -56,6 +59,7 @@ const DashboardPage: React.FC = () => {
   const totalItems = items.reduce((acc, curr) => acc + curr.quantity, 0);
   const distinctItems = items.length;
 
+  // Only use placeholder data if NOT loading and items list is truly empty
   const chartData = items.length > 0 ? items.slice(0, 5).map(i => ({
     name: i.name,
     quantidade: i.quantity
@@ -74,22 +78,22 @@ const DashboardPage: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatCard 
           title="Itens Cadastrados" 
-          value={distinctItems.toString()} 
+          value={isLoading ? "-" : distinctItems.toString()} 
           icon={Package} 
-          trend="+4 novos hoje"
+          trend={isLoading ? undefined : "+4 novos hoje"}
           colorClass="bg-blue-500"
           theme={currentTheme}
         />
         <StatCard 
           title="Estoque Total" 
-          value={totalItems.toString()} 
+          value={isLoading ? "-" : totalItems.toString()} 
           icon={TrendingUp} 
           colorClass="bg-emerald-500"
           theme={currentTheme}
         />
         <StatCard 
           title="Alertas de Baixo Estoque" 
-          value={lowStockItems.length.toString()} 
+          value={isLoading ? "-" : lowStockItems.length.toString()} 
           icon={AlertTriangle} 
           colorClass="bg-orange-500"
           theme={currentTheme}
@@ -114,29 +118,35 @@ const DashboardPage: React.FC = () => {
         >
           <h3 className="text-lg font-bold mb-6" style={{ color: currentTheme.colors.text }}>Movimentação de Materiais</h3>
           <div className="h-80 w-full" style={{ minWidth: 0 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={currentTheme.colors.border} />
-                <XAxis dataKey="name" tick={{fontSize: 12, fill: currentTheme.colors.textSecondary}} stroke={currentTheme.colors.border} />
-                <YAxis tick={{fill: currentTheme.colors.textSecondary}} stroke={currentTheme.colors.border} />
-                <Tooltip 
-                  cursor={{fill: currentTheme.colors.border, opacity: 0.3}}
-                  contentStyle={{ 
-                    backgroundColor: currentTheme.colors.card,
-                    borderColor: currentTheme.colors.border,
-                    color: currentTheme.colors.text,
-                    borderRadius: '8px'
-                  }}
-                  itemStyle={{ color: currentTheme.colors.text }}
-                />
-                <Bar 
-                  dataKey="quantidade" 
-                  fill={currentTheme.colors.primary} 
-                  radius={[4, 4, 0, 0]} 
-                  barSize={40}
-                />
-              </BarChart>
-            </ResponsiveContainer>
+            {isLoading ? (
+              <div className="h-full w-full flex items-center justify-center">
+                <Loader2 className="animate-spin h-8 w-8" style={{ color: currentTheme.colors.primary }} />
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={currentTheme.colors.border} />
+                  <XAxis dataKey="name" tick={{fontSize: 12, fill: currentTheme.colors.textSecondary}} stroke={currentTheme.colors.border} />
+                  <YAxis tick={{fill: currentTheme.colors.textSecondary}} stroke={currentTheme.colors.border} />
+                  <Tooltip 
+                    cursor={{fill: currentTheme.colors.border, opacity: 0.3}}
+                    contentStyle={{ 
+                      backgroundColor: currentTheme.colors.card,
+                      borderColor: currentTheme.colors.border,
+                      color: currentTheme.colors.text,
+                      borderRadius: '8px'
+                    }}
+                    itemStyle={{ color: currentTheme.colors.text }}
+                  />
+                  <Bar 
+                    dataKey="quantidade" 
+                    fill={currentTheme.colors.primary} 
+                    radius={[4, 4, 0, 0]} 
+                    barSize={40}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
@@ -150,7 +160,11 @@ const DashboardPage: React.FC = () => {
         >
           <h3 className="text-lg font-bold mb-6" style={{ color: currentTheme.colors.text }}>Alertas Recentes</h3>
           <div className="space-y-4">
-            {lowStockItems.length > 0 ? (
+            {isLoading ? (
+               <div className="flex justify-center py-4">
+                 <Loader2 className="animate-spin h-5 w-5" style={{ color: currentTheme.colors.textSecondary }} />
+               </div>
+            ) : lowStockItems.length > 0 ? (
               lowStockItems.map((item, idx) => (
                 <div key={idx} className="flex items-center p-3 rounded-lg border bg-red-500/10 border-red-500/20">
                   <AlertTriangle className="h-5 w-5 text-red-500 mr-3" />

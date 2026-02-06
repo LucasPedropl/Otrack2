@@ -21,6 +21,12 @@ export interface InventoryItem {
   updatedAt: Date;
 }
 
+export interface ConstructionSite {
+  id?: string;
+  name: string;
+  createdAt: Date;
+}
+
 export interface ThemeColors {
   background: string;
   sidebar: string;
