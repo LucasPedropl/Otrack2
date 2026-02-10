@@ -6,24 +6,114 @@ export const themes: Theme[] = [
     name: 'Claro (Minimalista)',
     isDark: false,
     colors: {
-      background: '#f8fafc', // Slate 50 - Fundo levemente cinza
+      background: '#f8fafc', // Slate 50
       sidebar: '#ffffff',     // Sidebar Branca
       sidebarText: '#334155', // Slate 700
       card: '#ffffff',        // Cards Brancos
-      text: '#0f172a',        // Slate 900 - Texto quase preto
+      text: '#0f172a',        // Slate 900
       textSecondary: '#64748b', // Slate 500
-      primary: '#0f172a',     // Slate 900 - Botão escuro como na imagem
-      border: '#e2e8f0',      // Slate 200 - Borda cinza suave
+      primary: '#0f172a',     // Slate 900
+      border: '#cbd5e1',      // Slate 300
+    }
+  },
+  {
+    id: 'midnight-mixed',
+    name: 'Midnight (Misto)',
+    isDark: false,
+    colors: {
+      background: '#ffffff',  // Fundo Branco Puro
+      sidebar: '#09090b',     // Preto "Zinc" (Muito escuro)
+      sidebarText: '#ffffff', // Texto Branco na barra
+      card: '#ffffff',        // Cards Brancos
+      text: '#09090b',        // Texto Preto na página branca
+      textSecondary: '#71717a', // Cinza médio
+      primary: '#18181b',     // Botões Pretos
+      border: '#e4e4e7',      // Bordas cinza claro
+    }
+  },
+  {
+    id: 'corporate-navy',
+    name: 'Corporativo (Navy)',
+    isDark: false,
+    colors: {
+      background: '#f1f5f9', // Slate 100
+      sidebar: '#0f172a',    // Slate 900
+      sidebarText: '#ffffff', // Branco Puro
+      card: '#ffffff',
+      text: '#0f172a',
+      textSecondary: '#475569',
+      primary: '#0ea5e9',    // Sky 500
+      border: '#cbd5e1',     // Slate 300
+    }
+  },
+  {
+    id: 'enterprise-forest',
+    name: 'Enterprise (Verde)',
+    isDark: false,
+    colors: {
+      background: '#f0fdf4', // Green 50
+      sidebar: '#064e3b',    // Emerald 900
+      sidebarText: '#ffffff', // Branco Puro
+      card: '#ffffff',
+      text: '#022c22',
+      textSecondary: '#047857',
+      primary: '#10b981',    // Emerald 500
+      border: '#d1d5db',     // Gray 300
+    }
+  },
+  {
+    id: 'modern-charcoal',
+    name: 'Moderno (Grafite)',
+    isDark: false,
+    colors: {
+      background: '#f4f4f5', // Zinc 100
+      sidebar: '#18181b',    // Zinc 950
+      sidebarText: '#ffffff', // Branco Puro
+      card: '#ffffff',
+      text: '#18181b',
+      textSecondary: '#52525b',
+      primary: '#6366f1',    // Indigo 500
+      border: '#d4d4d8',     // Zinc 300
+    }
+  },
+  {
+    id: 'saas-royal',
+    name: 'SaaS (Roxo)',
+    isDark: false,
+    colors: {
+      background: '#faf5ff', // Purple 50
+      sidebar: '#4c1d95',    // Violet 900
+      sidebarText: '#ffffff', // Branco Puro
+      card: '#ffffff',
+      text: '#2e1065',
+      textSecondary: '#6d28d9',
+      primary: '#8b5cf6',    // Violet 500
+      border: '#d8b4fe',     // Purple 300
+    }
+  },
+  {
+    id: 'construction-orange',
+    name: 'Obra (Laranja)',
+    isDark: false,
+    colors: {
+      background: '#fff7ed', // Orange 50
+      sidebar: '#9a3412',    // Orange 800
+      sidebarText: '#ffffff', // Branco Puro
+      card: '#ffffff',
+      text: '#431407',
+      textSecondary: '#c2410c',
+      primary: '#f97316',    // Orange 500
+      border: '#fdba74',     // Orange 300
     }
   },
   {
     id: 'cosmic',
-    name: 'Cosmic (Padrão)',
+    name: 'Cosmic (Escuro)',
     isDark: true,
     colors: {
       background: '#0f172a', // Slate 900
       sidebar: '#1e293b', // Slate 800
-      sidebarText: '#e2e8f0', // Slate 200
+      sidebarText: '#f8fafc', // Slate 50
       card: '#1e293b',
       text: '#f8fafc', // Slate 50
       textSecondary: '#94a3b8', // Slate 400
@@ -93,7 +183,7 @@ export const themes: Theme[] = [
   },
   {
     id: 'forest',
-    name: 'Forest',
+    name: 'Forest (Escuro)',
     isDark: true,
     colors: {
       background: '#0f2218', // Dark Green
@@ -108,7 +198,7 @@ export const themes: Theme[] = [
   },
   {
     id: 'ocean',
-    name: 'Ocean',
+    name: 'Ocean (Escuro)',
     isDark: true,
     colors: {
       background: '#0f293a', // Deep Blue
@@ -126,11 +216,10 @@ export const themes: Theme[] = [
     name: 'Sunset (Laranja)',
     isDark: true,
     colors: {
-      // Using requested Stone shades
-      background: '#44403c', // Stone 700 (Lighter gray provided)
-      sidebar: '#292524',    // Stone 800 (Darker gray provided)
+      background: '#44403c', // Stone 700
+      sidebar: '#292524',    // Stone 800
       sidebarText: '#fafafa', // Stone 50
-      card: '#57534e',       // Stone 600 (Automatically calculated lighter shade for elevation)
+      card: '#57534e',       // Stone 600
       text: '#fafafa',
       textSecondary: '#d6d3d1', // Stone 300
       primary: '#f97316',    // Orange 500
@@ -142,7 +231,6 @@ export const themes: Theme[] = [
     name: 'Jungle (Verde)',
     isDark: true,
     colors: {
-      // Using requested Stone shades
       background: '#44403c', // Stone 700
       sidebar: '#292524',    // Stone 800
       sidebarText: '#fafafa',
@@ -155,7 +243,7 @@ export const themes: Theme[] = [
   },
   {
     id: 'midnight',
-    name: 'Midnight (Dark)',
+    name: 'Midnight (Preto)',
     isDark: true,
     colors: {
       background: '#000000',

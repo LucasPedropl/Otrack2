@@ -17,8 +17,14 @@ export const TopBar: React.FC<TopBarProps> = ({ onToggleSettings, isSettingsOpen
         backgroundColor: currentTheme.colors.sidebar, 
       }}
     >
-       {/* Physical Border Line */}
-       <div className="absolute bottom-0 left-0 right-0 h-[1px]" style={{ backgroundColor: currentTheme.colors.border }} />
+       {/* Physical Border Line - Using opacity for subtle look on dark/colored sidebars */}
+       <div 
+         className="absolute bottom-0 left-0 right-0 h-[1px]" 
+         style={{ 
+           backgroundColor: currentTheme.colors.sidebarText, 
+           opacity: 0.12 
+         }} 
+       />
 
        {/* Left Side: Empty now (Logo removed) */}
        <div className="flex items-center gap-4 w-full sm:w-auto">
@@ -29,6 +35,7 @@ export const TopBar: React.FC<TopBarProps> = ({ onToggleSettings, isSettingsOpen
          
          {/* Global Search Bar */}
          <div className="relative hidden md:block w-64">
+            {/* Icon color uses global text color inside the input which is white/light */}
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 opacity-50" style={{ color: currentTheme.colors.text }} />
             <input
               type="text"
@@ -45,25 +52,38 @@ export const TopBar: React.FC<TopBarProps> = ({ onToggleSettings, isSettingsOpen
          {/* Settings Button - Toggles Sidebar */}
          <button 
            onClick={onToggleSettings}
-           className={`p-2 rounded-lg transition-all hover:opacity-80 border ${isSettingsOpen ? 'ring-2 ring-opacity-50' : ''}`}
+           className={`p-2 rounded-lg transition-all hover:bg-white/10`}
            style={{ 
-             backgroundColor: isSettingsOpen ? currentTheme.colors.primary : currentTheme.colors.card,
-             borderColor: currentTheme.colors.border,
-             color: isSettingsOpen ? '#fff' : currentTheme.colors.textSecondary,
-             outlineColor: currentTheme.colors.primary
+             // When active: Primary color. When inactive: Transparent (blends with header)
+             backgroundColor: isSettingsOpen ? currentTheme.colors.primary : 'transparent',
+             // Border uses sidebarText opacity to be visible on dark headers but subtle
+             border: `1px solid ${isSettingsOpen ? currentTheme.colors.primary : currentTheme.colors.sidebarText}`,
+             borderColor: isSettingsOpen ? currentTheme.colors.primary : currentTheme.colors.sidebarText,
+             // Icon uses sidebarText (white on dark headers)
+             color: isSettingsOpen ? '#fff' : currentTheme.colors.sidebarText,
+             // Subtle opacity for border when inactive
+             opacity: isSettingsOpen ? 1 : 0.8
            }}
            title="Configurações e Cadastros"
          >
-           <Settings size={20} />
+           <Settings size={20} style={{ opacity: isSettingsOpen ? 1 : 0.8 }} />
          </button>
 
-         <div className="h-6 w-px mx-1" style={{ backgroundColor: currentTheme.colors.border }}></div>
+         {/* Divider with opacity based on Sidebar Text (visible on dark) */}
+         <div 
+           className="h-6 w-px mx-1" 
+           style={{ 
+             backgroundColor: currentTheme.colors.sidebarText, 
+             opacity: 0.12 
+           }}
+         ></div>
 
          {/* Profile Info */}
          <div className="flex items-center space-x-4">
            <div className="text-right hidden sm:block">
-             <p className="text-sm font-medium" style={{ color: currentTheme.colors.text }}>Pedro Mota</p>
-             <p className="text-xs" style={{ color: currentTheme.colors.textSecondary }}>Administrador</p>
+             {/* Text colors mapped to sidebarText to ensure visibility on dark headers */}
+             <p className="text-sm font-medium" style={{ color: currentTheme.colors.sidebarText }}>Pedro Mota</p>
+             <p className="text-xs" style={{ color: currentTheme.colors.sidebarText, opacity: 0.7 }}>Administrador</p>
            </div>
            <div 
              className="h-10 w-10 rounded-full flex items-center justify-center font-bold border-2"

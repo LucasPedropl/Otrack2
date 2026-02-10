@@ -60,12 +60,19 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
     fetchSites();
   }, []);
 
+  // Sync Sidebar State with Route
+  useEffect(() => {
+    const isSettingsPage = SETTINGS_PATHS.some(path => location.pathname.startsWith(path));
+    if (isSettingsPage && !isSettingsOpen) {
+      openSettings();
+    }
+  }, [location.pathname, isSettingsOpen, openSettings]);
+
   const toggleMenu = (menu: string) => {
     setOpenMenus(prev => ({ ...prev, [menu]: !prev[menu] }));
   };
 
   const handleTooltip = (e: React.MouseEvent<HTMLElement>, label: string, sidebarType: 'primary' | 'secondary') => {
-    // Show if primary is collapsed OR secondary is collapsed
     if (sidebarType === 'primary' && !isPrimaryCollapsed) return;
     if (sidebarType === 'secondary' && !isSettingsCollapsed) return;
 
@@ -81,7 +88,6 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
     setHoveredTooltip(null);
   };
 
-  // Main Navigation (System Pages)
   const navItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/admin/dashboard' },
     { icon: Building2, label: 'Gerenciar Obras', path: '/admin/obras' },
@@ -89,7 +95,6 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
 
   const handlePrimaryNavigate = (path: string) => {
     navigate(path);
-    // When navigating via primary sidebar, close settings to show the main content
     if (isSettingsOpen) {
        closeSettings();
     }
@@ -99,11 +104,8 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
     navigate(path);
   };
 
-  // Logic to determine what to show in the main content area
   const isSettingsPath = SETTINGS_PATHS.includes(location.pathname);
   const showContent = !isSettingsOpen || (isSettingsOpen && isSettingsPath);
-  
-  // Show strip if we are in settings mode or path
   const showToggleStrip = isSettingsOpen || isSettingsPath;
 
   return (
@@ -119,10 +121,13 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
           color: currentTheme.colors.sidebarText,
         }}
       >
-        {/* Physical Border Line (Fixes serrilhado) */}
+        {/* Physical Border Line (Right) - Using opacity for subtle look on dark sidebars */}
         <div 
           className="absolute right-0 top-0 bottom-0 w-[1px] z-50"
-          style={{ backgroundColor: currentTheme.colors.border }}
+          style={{ 
+            backgroundColor: currentTheme.colors.sidebarText, 
+            opacity: 0.12 
+          }}
         />
 
         {/* Toggle Button */}
@@ -145,8 +150,14 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
         <div 
           className={`h-[81px] p-6 flex items-center transition-all ${isPrimaryCollapsed ? 'justify-center' : 'space-x-3'} relative`}
         >
-          {/* Bottom Border for Header */}
-          <div className="absolute bottom-0 left-0 right-0 h-[1px]" style={{ backgroundColor: currentTheme.colors.border }} />
+          {/* Bottom Border for Header - Subtle opacity */}
+          <div 
+            className="absolute bottom-0 left-0 right-0 h-[1px]" 
+            style={{ 
+              backgroundColor: currentTheme.colors.sidebarText, 
+              opacity: 0.12 
+            }} 
+          />
 
           <HardHat className="h-8 w-8 flex-shrink-0" style={{ color: currentTheme.colors.primary }} />
           {!isPrimaryCollapsed && (
@@ -189,7 +200,16 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
                 Obras Ativas
               </p>
             )}
-            {isPrimaryCollapsed && <div className="border-t mx-4 mb-4 opacity-20" style={{ borderColor: currentTheme.colors.sidebarText }}></div>}
+            {/* Separator line with opacity */}
+            {isPrimaryCollapsed && (
+              <div 
+                className="border-t mx-4 mb-4" 
+                style={{ 
+                  borderColor: currentTheme.colors.sidebarText, 
+                  opacity: 0.12 
+                }}
+              ></div>
+            )}
             
             <div className="space-y-1">
               {sites.map((site) => {
@@ -220,7 +240,15 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
 
         {/* Generic Settings Link */}
         <div className="p-4 relative">
-          <div className="absolute top-0 left-0 right-0 h-[1px]" style={{ backgroundColor: currentTheme.colors.border }} />
+          {/* Top Border for Settings - Subtle opacity */}
+          <div 
+            className="absolute top-0 left-0 right-0 h-[1px]" 
+            style={{ 
+              backgroundColor: currentTheme.colors.sidebarText, 
+              opacity: 0.12 
+            }} 
+          />
+          
           <button
             onClick={() => handlePrimaryNavigate('/admin/settings')}
             onMouseEnter={(e) => handleTooltip(e, 'Aparência', 'primary')}
@@ -262,6 +290,7 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
             }}
           >
             {/* Physical Border Line for Secondary Sidebar */}
+            {/* Kept as standard border because secondary sidebar is often white/light in mixed themes */}
             {isSettingsOpen && (
               <div 
                 className="absolute right-0 top-0 bottom-0 w-[1px] z-50"
@@ -269,7 +298,6 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
               />
             )}
 
-            {/* Spacer */}
             <div className="h-4"></div>
 
             <div className="p-4 space-y-6">
@@ -288,7 +316,6 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
                      {!isSettingsCollapsed && (openMenus['orcamento'] ? <ChevronUp size={14} style={{ color: currentTheme.colors.textSecondary }} /> : <ChevronDown size={14} style={{ color: currentTheme.colors.textSecondary }} />)}
                   </button>
 
-                  {/* Show children if menu is open OR if sidebar is collapsed (so user can access them) */}
                   {(openMenus['orcamento'] || isSettingsCollapsed) && (
                     <div className={`space-y-1 ${isSettingsCollapsed ? '' : 'ml-4 pl-4 border-l border-solid'}`} style={{ borderColor: currentTheme.colors.border }}>
                        <button 
@@ -378,10 +405,10 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
             </div>
           </aside>
 
-          {/* 3. MAIN CONTENT AREA (Relative container for Absolute children) */}
+          {/* 3. MAIN CONTENT AREA */}
           <main className="flex-1 relative w-full h-full overflow-hidden flex flex-col">
             
-            {/* TOGGLE STRIP (Now Absolute inside Main) */}
+            {/* TOGGLE STRIP */}
             {showToggleStrip && (
               <div 
                 className="absolute top-0 bottom-0 left-0 z-40 flex items-center justify-start cursor-pointer group"
@@ -389,7 +416,6 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
                 onClick={toggleSettingsCollapse}
                 title={isSettingsCollapsed ? "Expandir Menu" : "Reduzir Menu"}
               >
-                {/* Vertical line divider for the strip */}
                 <div 
                   className="absolute top-0 bottom-0 left-0 w-[1px] group-hover:w-[2px] transition-all duration-200"
                   style={{ backgroundColor: currentTheme.colors.border }}
@@ -408,8 +434,6 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
             )}
 
             {showContent ? (
-              // Scrollable Wrapper
-              // Added padding-left to account for the absolute toggle strip if visible
               <div className={`flex-1 overflow-y-auto w-full ${location.pathname.startsWith('/admin/obra/') ? "" : "p-8"} ${showToggleStrip ? 'pl-6' : ''}`}>
                 {children}
               </div>
@@ -441,7 +465,6 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
         </div>
       </div>
 
-      {/* Global Fixed Tooltip */}
       {hoveredTooltip && (
            <div 
              className="fixed px-3 py-1.5 rounded-md text-xs font-medium z-[100] shadow-lg border border-solid animate-in fade-in zoom-in-95 duration-100 whitespace-nowrap pointer-events-none"
