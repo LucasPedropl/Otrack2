@@ -62,8 +62,12 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
 
   // Sync Sidebar State with Route
   useEffect(() => {
-    const isSettingsPage = SETTINGS_PATHS.some(path => location.pathname.startsWith(path));
-    if (isSettingsPage && !isSettingsOpen) {
+    // Only auto-open settings sidebar for sub-modules (like Insumos, Users),
+    // NOT for the main Appearance/Theme page ('/admin/settings').
+    const autoOpenPaths = SETTINGS_PATHS.filter(path => path !== '/admin/settings');
+    const shouldAutoOpen = autoOpenPaths.some(path => location.pathname.startsWith(path));
+
+    if (shouldAutoOpen && !isSettingsOpen) {
       openSettings();
     }
   }, [location.pathname, isSettingsOpen, openSettings]);
@@ -108,14 +112,12 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
   const showContent = !isSettingsOpen || (isSettingsOpen && isSettingsPath);
   const showToggleStrip = isSettingsOpen || isSettingsPath;
 
-  // Determine if we should use light background for active items (for dark sidebars)
-  // or a colored background (for light sidebars)
-  // Simpler approach: Use sidebarText with high contrast opacity for active state
+  // Shared Logic for Sidebar Item Styles (Primary and Secondary)
   const getSidebarItemStyle = (isActive: boolean) => ({
     backgroundColor: isActive ? 
-        (currentTheme.isDark || currentTheme.colors.sidebar === '#000000' || currentTheme.colors.sidebar === '#09090b' ? 'rgba(255,255,255,0.12)' : `${currentTheme.colors.primary}15`) 
+        (currentTheme.isDark || ['#000000', '#09090b', '#18181b'].includes(currentTheme.colors.sidebar) ? 'rgba(255,255,255,0.12)' : `${currentTheme.colors.primary}15`) 
         : 'transparent',
-    color: isActive ? currentTheme.colors.sidebarText : currentTheme.colors.sidebarText,
+    color: currentTheme.colors.sidebarText,
     opacity: isActive ? 1 : 0.7,
     fontWeight: isActive ? 600 : 400
   });
@@ -283,7 +285,9 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
               ${isSettingsOpen ? (isSettingsCollapsed ? 'w-20' : 'w-64') : 'w-0 overflow-hidden'}
             `}
             style={{ 
-                backgroundColor: currentTheme.colors.background === '#f8fafc' ? '#ffffff' : currentTheme.colors.sidebar,
+                // Now strictly uses sidebar background color to match the primary sidebar
+                backgroundColor: currentTheme.colors.sidebar,
+                color: currentTheme.colors.sidebarText,
                 height: '100%',
                 opacity: isSettingsOpen ? 1 : 0,
                 transform: isSettingsOpen ? 'translateX(0)' : 'translateX(-100%)'
@@ -293,7 +297,10 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
             {isSettingsOpen && (
               <div 
                 className="absolute right-0 top-0 bottom-0 w-[1px] z-50"
-                style={{ backgroundColor: currentTheme.colors.border }}
+                style={{ 
+                   backgroundColor: currentTheme.colors.sidebarText,
+                   opacity: 0.12
+                }}
               />
             )}
 
@@ -306,23 +313,23 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
                     onClick={() => toggleMenu('orcamento')}
                     onMouseEnter={(e) => handleTooltip(e, 'Orçamento', 'secondary')}
                     onMouseLeave={handleTooltipLeave}
-                    className={`w-full flex items-center mb-2 p-2 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-colors ${isSettingsCollapsed ? 'justify-center' : 'justify-between'}`}
+                    className={`w-full flex items-center mb-2 p-2 rounded hover:bg-white/5 transition-colors ${isSettingsCollapsed ? 'justify-center' : 'justify-between'}`}
                   >
-                     <div className={`flex items-center gap-2 font-semibold ${isSettingsCollapsed ? 'justify-center' : ''}`} style={{ color: currentTheme.colors.text }}>
+                     <div className={`flex items-center gap-2 font-semibold ${isSettingsCollapsed ? 'justify-center' : ''}`} style={{ color: currentTheme.colors.sidebarText }}>
                         <Calculator size={18} />
                         {!isSettingsCollapsed && <span>Orçamento</span>}
                      </div>
-                     {!isSettingsCollapsed && (openMenus['orcamento'] ? <ChevronUp size={14} style={{ color: currentTheme.colors.textSecondary }} /> : <ChevronDown size={14} style={{ color: currentTheme.colors.textSecondary }} />)}
+                     {!isSettingsCollapsed && (openMenus['orcamento'] ? <ChevronUp size={14} style={{ color: currentTheme.colors.sidebarText, opacity: 0.7 }} /> : <ChevronDown size={14} style={{ color: currentTheme.colors.sidebarText, opacity: 0.7 }} />)}
                   </button>
 
                   {(openMenus['orcamento'] || isSettingsCollapsed) && (
-                    <div className={`space-y-1 ${isSettingsCollapsed ? '' : 'ml-4 pl-4 border-l border-solid'}`} style={{ borderColor: currentTheme.colors.border }}>
+                    <div className={`space-y-1 ${isSettingsCollapsed ? '' : 'ml-4 pl-4 border-l border-solid'}`} style={{ borderColor: `${currentTheme.colors.sidebarText}33` }}>
                        <button 
                           onClick={() => handleSettingsNavigate('/admin/insumos')} 
                           onMouseEnter={(e) => handleTooltip(e, 'Insumos', 'secondary')}
                           onMouseLeave={handleTooltipLeave}
-                          className={`block w-full text-left py-2 px-3 rounded text-sm transition-colors ${location.pathname === '/admin/insumos' ? 'bg-black/5 dark:bg-white/10 font-medium' : 'hover:bg-black/5 dark:hover:bg-white/5'} ${isSettingsCollapsed ? 'flex justify-center px-0' : ''}`} 
-                          style={{ color: location.pathname === '/admin/insumos' ? currentTheme.colors.primary : currentTheme.colors.textSecondary }}
+                          className={`block w-full text-left py-2 px-3 rounded text-sm transition-colors hover:bg-white/5 ${isSettingsCollapsed ? 'flex justify-center px-0' : ''}`} 
+                          style={getSidebarItemStyle(location.pathname === '/admin/insumos')}
                        >
                           <div className={`flex items-center gap-2 ${isSettingsCollapsed ? 'justify-center' : ''}`}>
                             <FileText size={14} />
@@ -333,8 +340,8 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
                           onClick={() => handleSettingsNavigate('/admin/unidades')} 
                           onMouseEnter={(e) => handleTooltip(e, 'Unid. de Medidas', 'secondary')}
                           onMouseLeave={handleTooltipLeave}
-                          className={`block w-full text-left py-2 px-3 rounded text-sm transition-colors ${location.pathname === '/admin/unidades' ? 'bg-black/5 dark:bg-white/10 font-medium' : 'hover:bg-black/5 dark:hover:bg-white/5'} ${isSettingsCollapsed ? 'flex justify-center px-0' : ''}`} 
-                          style={{ color: location.pathname === '/admin/unidades' ? currentTheme.colors.primary : currentTheme.colors.textSecondary }}
+                          className={`block w-full text-left py-2 px-3 rounded text-sm transition-colors hover:bg-white/5 ${isSettingsCollapsed ? 'flex justify-center px-0' : ''}`} 
+                          style={getSidebarItemStyle(location.pathname === '/admin/unidades')}
                        >
                           <div className={`flex items-center gap-2 ${isSettingsCollapsed ? 'justify-center' : ''}`}>
                             <Ruler size={14} />
@@ -345,8 +352,8 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
                           onClick={() => handleSettingsNavigate('/admin/categorias')} 
                           onMouseEnter={(e) => handleTooltip(e, 'Categorias', 'secondary')}
                           onMouseLeave={handleTooltipLeave}
-                          className={`block w-full text-left py-2 px-3 rounded text-sm transition-colors ${location.pathname === '/admin/categorias' ? 'bg-black/5 dark:bg-white/10 font-medium' : 'hover:bg-black/5 dark:hover:bg-white/5'} ${isSettingsCollapsed ? 'flex justify-center px-0' : ''}`} 
-                          style={{ color: location.pathname === '/admin/categorias' ? currentTheme.colors.primary : currentTheme.colors.textSecondary }}
+                          className={`block w-full text-left py-2 px-3 rounded text-sm transition-colors hover:bg-white/5 ${isSettingsCollapsed ? 'flex justify-center px-0' : ''}`} 
+                          style={getSidebarItemStyle(location.pathname === '/admin/categorias')}
                        >
                           <div className={`flex items-center gap-2 ${isSettingsCollapsed ? 'justify-center' : ''}`}>
                             <Tag size={14} />
@@ -363,23 +370,23 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
                     onClick={() => toggleMenu('acesso')}
                     onMouseEnter={(e) => handleTooltip(e, 'Acesso ao sistema', 'secondary')}
                     onMouseLeave={handleTooltipLeave}
-                    className={`w-full flex items-center mb-2 p-2 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-colors ${isSettingsCollapsed ? 'justify-center' : 'justify-between'}`}
+                    className={`w-full flex items-center mb-2 p-2 rounded hover:bg-white/5 transition-colors ${isSettingsCollapsed ? 'justify-center' : 'justify-between'}`}
                   >
-                     <div className={`flex items-center gap-2 font-semibold ${isSettingsCollapsed ? 'justify-center' : ''}`} style={{ color: currentTheme.colors.text }}>
+                     <div className={`flex items-center gap-2 font-semibold ${isSettingsCollapsed ? 'justify-center' : ''}`} style={{ color: currentTheme.colors.sidebarText }}>
                         <ShieldCheck size={18} />
                         {!isSettingsCollapsed && <span>Acesso ao sistema</span>}
                      </div>
-                     {!isSettingsCollapsed && (openMenus['acesso'] ? <ChevronUp size={14} style={{ color: currentTheme.colors.textSecondary }} /> : <ChevronDown size={14} style={{ color: currentTheme.colors.textSecondary }} />)}
+                     {!isSettingsCollapsed && (openMenus['acesso'] ? <ChevronUp size={14} style={{ color: currentTheme.colors.sidebarText, opacity: 0.7 }} /> : <ChevronDown size={14} style={{ color: currentTheme.colors.sidebarText, opacity: 0.7 }} />)}
                   </button>
 
                   {(openMenus['acesso'] || isSettingsCollapsed) && (
-                    <div className={`space-y-1 ${isSettingsCollapsed ? '' : 'ml-4 pl-4 border-l border-solid'}`} style={{ borderColor: currentTheme.colors.border }}>
+                    <div className={`space-y-1 ${isSettingsCollapsed ? '' : 'ml-4 pl-4 border-l border-solid'}`} style={{ borderColor: `${currentTheme.colors.sidebarText}33` }}>
                        <button 
                           onClick={() => handleSettingsNavigate('/admin/perfis')} 
                           onMouseEnter={(e) => handleTooltip(e, 'Perfis de acesso', 'secondary')}
                           onMouseLeave={handleTooltipLeave}
-                          className={`block w-full text-left py-2 px-3 rounded text-sm transition-colors ${location.pathname === '/admin/perfis' ? 'bg-black/5 dark:bg-white/10 font-medium' : 'hover:bg-black/5 dark:hover:bg-white/5'} ${isSettingsCollapsed ? 'flex justify-center px-0' : ''}`} 
-                          style={{ color: location.pathname === '/admin/perfis' ? currentTheme.colors.primary : currentTheme.colors.textSecondary }}
+                          className={`block w-full text-left py-2 px-3 rounded text-sm transition-colors hover:bg-white/5 ${isSettingsCollapsed ? 'flex justify-center px-0' : ''}`} 
+                          style={getSidebarItemStyle(location.pathname === '/admin/perfis')}
                        >
                           <div className={`flex items-center gap-2 ${isSettingsCollapsed ? 'justify-center' : ''}`}>
                             <ShieldCheck size={14} />
@@ -390,8 +397,8 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
                           onClick={() => handleSettingsNavigate('/admin/usuarios')} 
                           onMouseEnter={(e) => handleTooltip(e, 'Usuários', 'secondary')}
                           onMouseLeave={handleTooltipLeave}
-                          className={`block w-full text-left py-2 px-3 rounded text-sm transition-colors ${location.pathname === '/admin/usuarios' ? 'bg-black/5 dark:bg-white/10 font-medium' : 'hover:bg-black/5 dark:hover:bg-white/5'} ${isSettingsCollapsed ? 'flex justify-center px-0' : ''}`} 
-                          style={{ color: location.pathname === '/admin/usuarios' ? currentTheme.colors.primary : currentTheme.colors.textSecondary }}
+                          className={`block w-full text-left py-2 px-3 rounded text-sm transition-colors hover:bg-white/5 ${isSettingsCollapsed ? 'flex justify-center px-0' : ''}`} 
+                          style={getSidebarItemStyle(location.pathname === '/admin/usuarios')}
                        >
                           <div className={`flex items-center gap-2 ${isSettingsCollapsed ? 'justify-center' : ''}`}>
                             <Users size={14} />
@@ -422,9 +429,9 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
                 <div 
                   className="relative w-5 h-10 flex items-center justify-center rounded-r-md shadow-sm transition-transform duration-200 group-hover:translate-x-0.5"
                   style={{ 
-                    backgroundColor: currentTheme.colors.card,
+                    backgroundColor: currentTheme.colors.sidebar,
                     boxShadow: `0 0 0 1px ${currentTheme.colors.border}`,
-                    color: currentTheme.colors.textSecondary
+                    color: currentTheme.colors.sidebarText
                   }}
                 >
                     {isSettingsCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}

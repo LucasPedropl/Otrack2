@@ -19,8 +19,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return foundTheme;
       }
     }
-    // Default to Midnight Mixed as requested
-    return themes.find(t => t.id === 'midnight-mixed') || themes[0];
+    // Default to Modern Charcoal as requested
+    return themes.find(t => t.id === 'modern-charcoal') || themes[0];
   });
 
   const setTheme = (themeId: string) => {
