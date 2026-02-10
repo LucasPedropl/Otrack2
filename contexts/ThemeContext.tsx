@@ -19,8 +19,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return foundTheme;
       }
     }
-    // Default to Light Minimal if no preference is saved
-    return themes.find(t => t.id === 'light-minimal') || themes[0];
+    // Default to Midnight Mixed as requested
+    return themes.find(t => t.id === 'midnight-mixed') || themes[0];
   });
 
   const setTheme = (themeId: string) => {

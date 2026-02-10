@@ -2,6 +2,21 @@ import { Theme } from '../types';
 
 export const themes: Theme[] = [
   {
+    id: 'midnight-mixed',
+    name: 'Midnight (Misto)',
+    isDark: false,
+    colors: {
+      background: '#ffffff',  // Fundo Branco Puro
+      sidebar: '#000000',     // Preto Absoluto
+      sidebarText: '#ffffff', // Ícones e Texto Branco Puro
+      card: '#ffffff',        // Cards Brancos
+      text: '#09090b',        // Texto Preto na página
+      textSecondary: '#71717a', // Cinza médio
+      primary: '#000000',     // Botões Pretos (Alto contraste na página branca)
+      border: '#e4e4e7',      // Bordas cinza claro
+    }
+  },
+  {
     id: 'light-minimal',
     name: 'Claro (Minimalista)',
     isDark: false,
@@ -14,21 +29,6 @@ export const themes: Theme[] = [
       textSecondary: '#64748b', // Slate 500
       primary: '#0f172a',     // Slate 900
       border: '#cbd5e1',      // Slate 300
-    }
-  },
-  {
-    id: 'midnight-mixed',
-    name: 'Midnight (Misto)',
-    isDark: false,
-    colors: {
-      background: '#ffffff',  // Fundo Branco Puro
-      sidebar: '#09090b',     // Preto "Zinc" (Muito escuro)
-      sidebarText: '#ffffff', // Texto Branco na barra
-      card: '#ffffff',        // Cards Brancos
-      text: '#09090b',        // Texto Preto na página branca
-      textSecondary: '#71717a', // Cinza médio
-      primary: '#18181b',     // Botões Pretos
-      border: '#e4e4e7',      // Bordas cinza claro
     }
   },
   {

@@ -108,6 +108,18 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
   const showContent = !isSettingsOpen || (isSettingsOpen && isSettingsPath);
   const showToggleStrip = isSettingsOpen || isSettingsPath;
 
+  // Determine if we should use light background for active items (for dark sidebars)
+  // or a colored background (for light sidebars)
+  // Simpler approach: Use sidebarText with high contrast opacity for active state
+  const getSidebarItemStyle = (isActive: boolean) => ({
+    backgroundColor: isActive ? 
+        (currentTheme.isDark || currentTheme.colors.sidebar === '#000000' || currentTheme.colors.sidebar === '#09090b' ? 'rgba(255,255,255,0.12)' : `${currentTheme.colors.primary}15`) 
+        : 'transparent',
+    color: isActive ? currentTheme.colors.sidebarText : currentTheme.colors.sidebarText,
+    opacity: isActive ? 1 : 0.7,
+    fontWeight: isActive ? 600 : 400
+  });
+
   return (
     <div 
       className="h-screen flex flex-row overflow-hidden transition-colors duration-300"
@@ -159,7 +171,7 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
             }} 
           />
 
-          <HardHat className="h-8 w-8 flex-shrink-0" style={{ color: currentTheme.colors.primary }} />
+          <HardHat className="h-8 w-8 flex-shrink-0" style={{ color: currentTheme.colors.sidebarText }} />
           {!isPrimaryCollapsed && (
             <div className="overflow-hidden whitespace-nowrap">
               <h1 className="text-xl font-bold tracking-tight">ObraLog</h1>
@@ -179,15 +191,11 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
                 onMouseEnter={(e) => handleTooltip(e, item.label, 'primary')}
                 onMouseLeave={handleTooltipLeave}
                 className={`group relative w-full flex items-center ${isPrimaryCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-3 rounded-lg transition-all hover:bg-white/5`}
-                style={{
-                  backgroundColor: 'transparent',
-                  color: isActive ? currentTheme.colors.primary : currentTheme.colors.sidebarText,
-                }}
+                style={getSidebarItemStyle(isActive)}
               >
-                <div className={`flex items-center ${isPrimaryCollapsed ? 'justify-center' : 'space-x-3'} w-full`} 
-                     style={{ opacity: isActive ? 1 : 0.6 }}>
+                <div className={`flex items-center ${isPrimaryCollapsed ? 'justify-center' : 'space-x-3'} w-full`}>
                   <item.icon className="h-5 w-5 flex-shrink-0" />
-                  {!isPrimaryCollapsed && <span className="font-medium whitespace-nowrap">{item.label}</span>}
+                  {!isPrimaryCollapsed && <span className="whitespace-nowrap">{item.label}</span>}
                 </div>
               </button>
             );
@@ -221,15 +229,11 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
                     onMouseEnter={(e) => handleTooltip(e, site.name, 'primary')}
                     onMouseLeave={handleTooltipLeave}
                     className={`group relative w-full flex items-center ${isPrimaryCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-2 rounded-lg transition-all hover:bg-white/5`}
-                    style={{
-                      backgroundColor: 'transparent',
-                      color: isActive ? currentTheme.colors.primary : currentTheme.colors.sidebarText,
-                    }}
+                    style={getSidebarItemStyle(isActive)}
                   >
-                    <div className={`flex items-center ${isPrimaryCollapsed ? 'justify-center' : 'space-x-3'} w-full`} 
-                         style={{ opacity: isActive ? 1 : 0.6 }}>
+                    <div className={`flex items-center ${isPrimaryCollapsed ? 'justify-center' : 'space-x-3'} w-full`}>
                       <FolderDot className="h-4 w-4 flex-shrink-0" />
-                      {!isPrimaryCollapsed && <span className="font-medium whitespace-nowrap text-sm truncate">{site.name}</span>}
+                      {!isPrimaryCollapsed && <span className="whitespace-nowrap text-sm truncate">{site.name}</span>}
                     </div>
                   </button>
                 );
@@ -254,15 +258,11 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
             onMouseEnter={(e) => handleTooltip(e, 'Aparência', 'primary')}
             onMouseLeave={handleTooltipLeave}
             className={`group relative w-full flex items-center ${isPrimaryCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-3 rounded-lg transition-all hover:bg-white/5`}
-            style={{
-              backgroundColor: 'transparent',
-              color: location.pathname === '/admin/settings' ? currentTheme.colors.primary : currentTheme.colors.sidebarText,
-            }}
+            style={getSidebarItemStyle(location.pathname === '/admin/settings')}
           >
-            <div className={`flex items-center ${isPrimaryCollapsed ? 'justify-center' : 'space-x-3'} w-full`} 
-                 style={{ opacity: location.pathname === '/admin/settings' ? 1 : 0.6 }}>
+            <div className={`flex items-center ${isPrimaryCollapsed ? 'justify-center' : 'space-x-3'} w-full`}>
               <Settings className="h-5 w-5 flex-shrink-0" />
-              {!isPrimaryCollapsed && <span className="font-medium whitespace-nowrap">Aparência</span>}
+              {!isPrimaryCollapsed && <span className="whitespace-nowrap">Aparência</span>}
             </div>
           </button>
         </div>
@@ -290,7 +290,6 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
             }}
           >
             {/* Physical Border Line for Secondary Sidebar */}
-            {/* Kept as standard border because secondary sidebar is often white/light in mixed themes */}
             {isSettingsOpen && (
               <div 
                 className="absolute right-0 top-0 bottom-0 w-[1px] z-50"
