@@ -30,6 +30,9 @@ export const AdminLayout: React.FC<LayoutProps> = ({ children }) => {
     return saved === 'true';
   });
 
+  // Tooltip State
+  const [hoveredTooltip, setHoveredTooltip] = useState<{ label: string; top: number } | null>(null);
+
   // Settings Sidebar State
   const [isSettingsOpen, setIsSettingsOpen] = useState(() => {
     const saved = localStorage.getItem('obralog_settings_open');
@@ -69,6 +72,19 @@ export const AdminLayout: React.FC<LayoutProps> = ({ children }) => {
 
   const toggleMenu = (menu: string) => {
     setOpenMenus(prev => ({ ...prev, [menu]: !prev[menu] }));
+  };
+
+  const handleTooltipEnter = (e: React.MouseEvent<HTMLElement>, label: string) => {
+    if (!isCollapsed) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    setHoveredTooltip({
+      label,
+      top: rect.top + (rect.height / 2)
+    });
+  };
+
+  const handleTooltipLeave = () => {
+    setHoveredTooltip(null);
   };
 
   // Main Navigation (System Pages)
@@ -140,7 +156,7 @@ export const AdminLayout: React.FC<LayoutProps> = ({ children }) => {
         </div>
 
         {/* Primary Nav Items */}
-        <nav className="p-4 space-y-2 flex-1 overflow-y-auto">
+        <nav className="p-4 space-y-2 flex-1 overflow-y-auto overflow-x-hidden">
           {/* System Pages */}
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
@@ -148,6 +164,8 @@ export const AdminLayout: React.FC<LayoutProps> = ({ children }) => {
               <button
                 key={item.path}
                 onClick={() => handlePrimaryNavigate(item.path)}
+                onMouseEnter={(e) => handleTooltipEnter(e, item.label)}
+                onMouseLeave={handleTooltipLeave}
                 className={`group relative w-full flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-3 rounded-lg transition-all hover:bg-white/5`}
                 style={{
                   backgroundColor: 'transparent',
@@ -159,19 +177,6 @@ export const AdminLayout: React.FC<LayoutProps> = ({ children }) => {
                   <item.icon className="h-5 w-5 flex-shrink-0" />
                   {!isCollapsed && <span className="font-medium whitespace-nowrap">{item.label}</span>}
                 </div>
-                
-                {isCollapsed && (
-                  <div 
-                    className="absolute left-full ml-3 px-2 py-1 rounded text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50 shadow-md border"
-                    style={{ 
-                      backgroundColor: currentTheme.colors.card,
-                      color: currentTheme.colors.text,
-                      borderColor: currentTheme.colors.border
-                    }}
-                  >
-                    {item.label}
-                  </div>
-                )}
               </button>
             );
           })}
@@ -192,6 +197,8 @@ export const AdminLayout: React.FC<LayoutProps> = ({ children }) => {
                   <button
                     key={site.id}
                     onClick={() => handlePrimaryNavigate(`/admin/obra/${site.id}`)}
+                    onMouseEnter={(e) => handleTooltipEnter(e, site.name)}
+                    onMouseLeave={handleTooltipLeave}
                     className={`group relative w-full flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-2 rounded-lg transition-all hover:bg-white/5`}
                     style={{
                       backgroundColor: 'transparent',
@@ -203,19 +210,6 @@ export const AdminLayout: React.FC<LayoutProps> = ({ children }) => {
                       <FolderDot className="h-4 w-4 flex-shrink-0" />
                       {!isCollapsed && <span className="font-medium whitespace-nowrap text-sm truncate">{site.name}</span>}
                     </div>
-
-                    {isCollapsed && (
-                      <div 
-                        className="absolute left-full ml-3 px-2 py-1 rounded text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50 shadow-md border"
-                        style={{ 
-                          backgroundColor: currentTheme.colors.card,
-                          color: currentTheme.colors.text,
-                          borderColor: currentTheme.colors.border
-                        }}
-                      >
-                        {site.name}
-                      </div>
-                    )}
                   </button>
                 );
               })}
@@ -234,6 +228,8 @@ export const AdminLayout: React.FC<LayoutProps> = ({ children }) => {
         >
           <button
             onClick={() => handlePrimaryNavigate('/admin/settings')}
+            onMouseEnter={(e) => handleTooltipEnter(e, 'Aparência')}
+            onMouseLeave={handleTooltipLeave}
             className={`group relative w-full flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-3 rounded-lg transition-all hover:bg-white/5`}
             style={{
               backgroundColor: 'transparent',
@@ -245,13 +241,24 @@ export const AdminLayout: React.FC<LayoutProps> = ({ children }) => {
               <Settings className="h-5 w-5 flex-shrink-0" />
               {!isCollapsed && <span className="font-medium whitespace-nowrap">Aparência</span>}
             </div>
-             {isCollapsed && (
-                  <div className="absolute left-full ml-3 px-2 py-1 rounded text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50 shadow-md border" style={{ backgroundColor: currentTheme.colors.card, color: currentTheme.colors.text }}>
-                    Aparência
-                  </div>
-              )}
           </button>
         </div>
+
+        {/* Fixed Tooltip Portal (Rendered in Sidebar but Fixed Position) */}
+        {isCollapsed && hoveredTooltip && (
+           <div 
+             className="fixed left-20 ml-3 px-3 py-1.5 rounded-md text-xs font-medium z-[100] shadow-lg border animate-in fade-in zoom-in-95 duration-100 whitespace-nowrap pointer-events-none"
+             style={{ 
+               top: hoveredTooltip.top,
+               transform: 'translateY(-50%)',
+               backgroundColor: currentTheme.colors.card,
+               color: currentTheme.colors.text,
+               borderColor: currentTheme.colors.border
+             }}
+           >
+             {hoveredTooltip.label}
+           </div>
+        )}
       </aside>
 
       {/* RIGHT SIDE WRAPPER */}

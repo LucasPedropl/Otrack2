@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { AdminLayout } from '../../../components/layout/AdminLayout';
 import { inventoryService } from '../../../services/inventoryService';
 import { InventoryItem } from '../../../types';
 import { Plus, Search, Package, Info, LayoutList, LayoutGrid, Edit, Trash2, X } from 'lucide-react';
@@ -201,8 +200,7 @@ const InsumosPage: React.FC = () => {
   const labelStyle = { color: currentTheme.colors.text };
 
   return (
-    <AdminLayout pageTitle="Insumos">
-      
+    <>
       {/* Header Actions */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <div className="flex items-center gap-4 w-full sm:w-auto">
@@ -610,7 +608,7 @@ const InsumosPage: React.FC = () => {
         </div>
       )}
 
-    </AdminLayout>
+    </>
   );
 };
 

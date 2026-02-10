@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { AdminLayout } from '../../../components/layout/AdminLayout';
 import { inventoryService } from '../../../services/inventoryService';
 import { InventoryItem } from '../../../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -72,8 +71,7 @@ const DashboardPage: React.FC = () => {
   ];
 
   return (
-    <AdminLayout pageTitle="Visão Geral da Obra">
-      
+    <>
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatCard 
@@ -207,8 +205,7 @@ const DashboardPage: React.FC = () => {
           </button>
         </div>
       </div>
-
-    </AdminLayout>
+    </>
   );
 };
 

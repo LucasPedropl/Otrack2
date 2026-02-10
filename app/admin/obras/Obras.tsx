@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { AdminLayout } from '../../../components/layout/AdminLayout';
 import { constructionService } from '../../../services/constructionService';
 import { ConstructionSite } from '../../../types';
 import { Plus, Search, Building2, Edit, Trash2, X } from 'lucide-react';
@@ -102,8 +101,7 @@ const ObrasPage: React.FC = () => {
   const labelStyle = { color: currentTheme.colors.text };
 
   return (
-    <AdminLayout pageTitle="Obras">
-      
+    <>
       {/* Header Actions */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <div className="flex items-center gap-4 w-full sm:w-auto">
@@ -269,7 +267,7 @@ const ObrasPage: React.FC = () => {
         </div>
       )}
 
-    </AdminLayout>
+    </>
   );
 };
 
