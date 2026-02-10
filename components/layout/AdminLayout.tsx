@@ -89,9 +89,9 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
 
   const handlePrimaryNavigate = (path: string) => {
     navigate(path);
+    // When navigating via primary sidebar, close settings to show the main content
     if (isSettingsOpen) {
-       // Optional: Auto close settings on nav? For now keep behavior simple
-       // closeSettings();
+       closeSettings();
     }
   };
 
@@ -106,12 +106,6 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
   // Show strip if we are in settings mode or path
   const showToggleStrip = isSettingsOpen || isSettingsPath;
 
-  // Use box-shadow for border to prevent anti-aliasing artifacts (serrated lines)
-  const borderStyle = {
-    boxShadow: `1px 0 0 0 ${currentTheme.colors.border}`,
-    borderRight: 'none' 
-  };
-
   return (
     <div 
       className="h-screen flex flex-row overflow-hidden transition-colors duration-300"
@@ -123,9 +117,14 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
         style={{ 
           backgroundColor: currentTheme.colors.sidebar, 
           color: currentTheme.colors.sidebarText,
-          ...borderStyle
         }}
       >
+        {/* Physical Border Line (Fixes serrilhado) */}
+        <div 
+          className="absolute right-0 top-0 bottom-0 w-[1px] z-50"
+          style={{ backgroundColor: currentTheme.colors.border }}
+        />
+
         {/* Toggle Button */}
         <button
           onClick={togglePrimarySidebar}
@@ -144,9 +143,11 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
 
         {/* Logo/Header Area */}
         <div 
-          className={`h-[81px] p-6 flex items-center border-b border-solid transition-all ${isPrimaryCollapsed ? 'justify-center' : 'space-x-3'}`}
-          style={{ borderColor: currentTheme.colors.border }}
+          className={`h-[81px] p-6 flex items-center transition-all ${isPrimaryCollapsed ? 'justify-center' : 'space-x-3'} relative`}
         >
+          {/* Bottom Border for Header */}
+          <div className="absolute bottom-0 left-0 right-0 h-[1px]" style={{ backgroundColor: currentTheme.colors.border }} />
+
           <HardHat className="h-8 w-8 flex-shrink-0" style={{ color: currentTheme.colors.primary }} />
           {!isPrimaryCollapsed && (
             <div className="overflow-hidden whitespace-nowrap">
@@ -218,10 +219,8 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
         </nav>
 
         {/* Generic Settings Link */}
-        <div 
-          className="p-4 border-t border-solid"
-          style={{ borderColor: currentTheme.colors.border }}
-        >
+        <div className="p-4 relative">
+          <div className="absolute top-0 left-0 right-0 h-[1px]" style={{ backgroundColor: currentTheme.colors.border }} />
           <button
             onClick={() => handlePrimaryNavigate('/admin/settings')}
             onMouseEnter={(e) => handleTooltip(e, 'Aparência', 'primary')}
@@ -252,18 +251,24 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
           
           {/* 2. SECONDARY SIDEBAR (SETTINGS PANEL) */}
           <aside
-            className={`flex-shrink-0 transition-all duration-300 overflow-y-auto flex flex-col z-20 
+            className={`flex-shrink-0 transition-all duration-300 overflow-y-auto flex flex-col z-20 relative
               ${isSettingsOpen ? (isSettingsCollapsed ? 'w-20' : 'w-64') : 'w-0 overflow-hidden'}
             `}
             style={{ 
                 backgroundColor: currentTheme.colors.background === '#f8fafc' ? '#ffffff' : currentTheme.colors.sidebar,
-                // Apply shadow border instead of border-r
-                boxShadow: isSettingsOpen ? `1px 0 0 0 ${currentTheme.colors.border}` : 'none',
                 height: '100%',
                 opacity: isSettingsOpen ? 1 : 0,
                 transform: isSettingsOpen ? 'translateX(0)' : 'translateX(-100%)'
             }}
           >
+            {/* Physical Border Line for Secondary Sidebar */}
+            {isSettingsOpen && (
+              <div 
+                className="absolute right-0 top-0 bottom-0 w-[1px] z-50"
+                style={{ backgroundColor: currentTheme.colors.border }}
+              />
+            )}
+
             {/* Spacer */}
             <div className="h-4"></div>
 
@@ -378,18 +383,19 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
             <div 
               className="relative flex-shrink-0 z-30 flex items-center justify-start cursor-pointer group"
               style={{ width: '12px', marginLeft: '-1px' }}
-              onClick={toggleSettingsCollapse} // CHANGED: Toggles collapse instead of open/close
+              onClick={toggleSettingsCollapse}
               title={isSettingsCollapsed ? "Expandir Menu" : "Reduzir Menu"}
             >
+              {/* Vertical line divider for the strip */}
               <div 
                 className="absolute top-0 bottom-0 left-0 w-[1px] group-hover:w-[2px] transition-all duration-200"
                 style={{ backgroundColor: currentTheme.colors.border }}
               />
               <div 
-                className="relative w-5 h-10 flex items-center justify-center rounded-r-md shadow-sm border-t border-r border-b border-solid transition-transform duration-200 group-hover:translate-x-0.5"
+                className="relative w-5 h-10 flex items-center justify-center rounded-r-md shadow-sm transition-transform duration-200 group-hover:translate-x-0.5"
                 style={{ 
                   backgroundColor: currentTheme.colors.card,
-                  borderColor: currentTheme.colors.border,
+                  boxShadow: `0 0 0 1px ${currentTheme.colors.border}`,
                   color: currentTheme.colors.textSecondary
                 }}
               >
@@ -398,10 +404,11 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
             </div>
           )}
 
-          {/* 3. MAIN CONTENT AREA */}
-          <main className="flex-1 overflow-y-auto relative w-full h-full">
+          {/* 3. MAIN CONTENT AREA (Relative container for Absolute children) */}
+          <main className="flex-1 relative w-full h-full overflow-hidden flex flex-col">
             {showContent ? (
-              <div className={location.pathname.startsWith('/admin/obra/') ? "" : "p-8"}>
+              // Scrollable Wrapper
+              <div className={`flex-1 overflow-y-auto w-full ${location.pathname.startsWith('/admin/obra/') ? "" : "p-8"}`}>
                 {children}
               </div>
             ) : (

@@ -12,12 +12,14 @@ export const TopBar: React.FC<TopBarProps> = ({ onToggleSettings, isSettingsOpen
 
   return (
     <header 
-      className="backdrop-blur-sm sticky top-0 z-30 px-4 sm:px-8 py-4 flex flex-col sm:flex-row gap-4 sm:gap-0 justify-between items-center border-b transition-colors duration-300 shadow-sm"
+      className="backdrop-blur-sm sticky top-0 z-30 px-4 sm:px-8 py-4 flex flex-col sm:flex-row gap-4 sm:gap-0 justify-between items-center transition-colors duration-300 relative"
       style={{ 
         backgroundColor: currentTheme.colors.sidebar, 
-        borderColor: currentTheme.colors.border 
       }}
     >
+       {/* Physical Border Line */}
+       <div className="absolute bottom-0 left-0 right-0 h-[1px]" style={{ backgroundColor: currentTheme.colors.border }} />
+
        {/* Left Side: Empty now (Logo removed) */}
        <div className="flex items-center gap-4 w-full sm:w-auto">
        </div>

@@ -1,7 +1,5 @@
 import React from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
-import { useSidebar } from '../../contexts/SidebarContext';
-import { useSettingsSidebar } from '../../contexts/SettingsContext';
 import { Button } from '../ui/Button';
 import { Download, Upload, ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -27,36 +25,22 @@ export const BottomActionsBar: React.FC<BottomActionsBarProps> = ({
   isImporting = false
 }) => {
   const { currentTheme } = useTheme();
-  const { isCollapsed: isPrimaryCollapsed } = useSidebar();
-  const { isSettingsOpen, isSettingsCollapsed } = useSettingsSidebar();
 
   const totalPages = Math.ceil(totalItems / itemsPerPage);
   const startItem = totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
   const endItem = Math.min(currentPage * itemsPerPage, totalItems);
 
-  // Calcula a largura da sidebar primária
-  // Desktop: 64 (256px) ou 20 (80px)
-  const primaryWidthClass = isPrimaryCollapsed ? 'md:ml-20' : 'md:ml-64';
-
-  // Calcula a largura da sidebar secundária
-  let secondaryOffset = 0;
-  if (isSettingsOpen) {
-    // 20 (80px) se colapsado, 64 (256px) se expandido
-    secondaryOffset = isSettingsCollapsed ? 80 : 256; 
-  }
-
   return (
     <div 
-      className={`fixed bottom-0 right-0 left-0 ${primaryWidthClass} z-30 border-t border-solid transition-all duration-300 backdrop-blur-sm`}
+      className="absolute bottom-0 left-0 right-0 z-30 transition-all duration-300 backdrop-blur-sm"
       style={{ 
-        left: isSettingsOpen ? `${secondaryOffset}px` : '0px',
-        marginLeft: '',
-        width: `calc(100% - ${isPrimaryCollapsed ? '80px' : '256px'} - ${secondaryOffset}px)`,
         backgroundColor: `${currentTheme.colors.card}F2`,
-        borderColor: currentTheme.colors.border,
-        boxShadow: '0 -1px 2px 0 rgba(0, 0, 0, 0.05)'
+        // Removing standard border/boxShadow to use physical line below
       }}
     >
+      {/* Physical 1px line at top to prevent sub-pixel rendering gaps/aliasing */}
+      <div className="absolute top-0 left-0 right-0 h-[1px]" style={{ backgroundColor: currentTheme.colors.border }} />
+
       <div className="flex flex-col sm:flex-row items-center justify-between px-6 py-4 gap-4">
         
         {/* Left: Actions */}
