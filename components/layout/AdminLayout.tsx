@@ -378,37 +378,39 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
             </div>
           </aside>
 
-          {/* TOGGLE STRIP (Toggles collapse state) */}
-          {showToggleStrip && (
-            <div 
-              className="relative flex-shrink-0 z-30 flex items-center justify-start cursor-pointer group"
-              style={{ width: '12px', marginLeft: '-1px' }}
-              onClick={toggleSettingsCollapse}
-              title={isSettingsCollapsed ? "Expandir Menu" : "Reduzir Menu"}
-            >
-              {/* Vertical line divider for the strip */}
-              <div 
-                className="absolute top-0 bottom-0 left-0 w-[1px] group-hover:w-[2px] transition-all duration-200"
-                style={{ backgroundColor: currentTheme.colors.border }}
-              />
-              <div 
-                className="relative w-5 h-10 flex items-center justify-center rounded-r-md shadow-sm transition-transform duration-200 group-hover:translate-x-0.5"
-                style={{ 
-                  backgroundColor: currentTheme.colors.card,
-                  boxShadow: `0 0 0 1px ${currentTheme.colors.border}`,
-                  color: currentTheme.colors.textSecondary
-                }}
-              >
-                  {isSettingsCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-              </div>
-            </div>
-          )}
-
           {/* 3. MAIN CONTENT AREA (Relative container for Absolute children) */}
           <main className="flex-1 relative w-full h-full overflow-hidden flex flex-col">
+            
+            {/* TOGGLE STRIP (Now Absolute inside Main) */}
+            {showToggleStrip && (
+              <div 
+                className="absolute top-0 bottom-0 left-0 z-40 flex items-center justify-start cursor-pointer group"
+                style={{ width: '12px', marginLeft: '-1px' }}
+                onClick={toggleSettingsCollapse}
+                title={isSettingsCollapsed ? "Expandir Menu" : "Reduzir Menu"}
+              >
+                {/* Vertical line divider for the strip */}
+                <div 
+                  className="absolute top-0 bottom-0 left-0 w-[1px] group-hover:w-[2px] transition-all duration-200"
+                  style={{ backgroundColor: currentTheme.colors.border }}
+                />
+                <div 
+                  className="relative w-5 h-10 flex items-center justify-center rounded-r-md shadow-sm transition-transform duration-200 group-hover:translate-x-0.5"
+                  style={{ 
+                    backgroundColor: currentTheme.colors.card,
+                    boxShadow: `0 0 0 1px ${currentTheme.colors.border}`,
+                    color: currentTheme.colors.textSecondary
+                  }}
+                >
+                    {isSettingsCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+                </div>
+              </div>
+            )}
+
             {showContent ? (
               // Scrollable Wrapper
-              <div className={`flex-1 overflow-y-auto w-full ${location.pathname.startsWith('/admin/obra/') ? "" : "p-8"}`}>
+              // Added padding-left to account for the absolute toggle strip if visible
+              <div className={`flex-1 overflow-y-auto w-full ${location.pathname.startsWith('/admin/obra/') ? "" : "p-8"} ${showToggleStrip ? 'pl-6' : ''}`}>
                 {children}
               </div>
             ) : (

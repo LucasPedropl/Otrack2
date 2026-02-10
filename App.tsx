@@ -12,6 +12,8 @@ import ObraRoot from './app/admin/obra/ObraRoot';
 import ObraOverview from './app/admin/obra/pages/ObraOverview';
 import ObraInventory from './app/admin/obra/pages/ObraInventory';
 import ObraMovements from './app/admin/obra/pages/ObraMovements';
+import PerfisPage from './app/admin/perfis/PerfisPage';
+import UsuariosPage from './app/admin/usuarios/UsuariosPage';
 import { authService } from './services/authService';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AdminLayout } from './components/layout/AdminLayout';
@@ -55,25 +57,9 @@ const App: React.FC = () => {
             <Route path="/admin/unidades" element={<UnidadesPage />} />
             <Route path="/admin/categorias" element={<CategoriasPage />} />
 
-            {/* Acesso ao Sistema */}
-            <Route 
-              path="/admin/perfis" 
-              element={
-                <PlaceholderPage 
-                  title="Perfis de Acesso" 
-                  description="Configuração de permissões e regras de acesso por tipo de usuário."
-                />
-              } 
-            />
-            <Route 
-              path="/admin/usuarios" 
-              element={
-                <PlaceholderPage 
-                  title="Usuários do Sistema" 
-                  description="Cadastro de operadores, almoxarifes e administradores."
-                />
-              } 
-            />
+            {/* Acesso ao Sistema - NOW LINKED TO REAL PAGES */}
+            <Route path="/admin/perfis" element={<PerfisPage />} />
+            <Route path="/admin/usuarios" element={<UsuariosPage />} />
 
             {/* Individual Obra Routes */}
             <Route path="/admin/obra/:id" element={<ObraRoot />}>

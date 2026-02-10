@@ -2,9 +2,18 @@ import React from 'react';
 
 export interface User {
   id?: string;
+  name?: string; // Nome do usuário
   email: string;
   role: 'admin' | 'almoxarife' | 'operario';
   createdAt: Date;
+}
+
+export interface AccessProfile {
+  id?: string;
+  name: string;
+  description: string;
+  permissions: string[]; // Ex: ['read_inventory', 'write_inventory']
+  level: 'Alto' | 'Médio' | 'Baixo'; // Apenas visual para a tabela
 }
 
 export interface InventoryItem {

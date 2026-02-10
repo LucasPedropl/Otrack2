@@ -32,7 +32,7 @@ export const BottomActionsBar: React.FC<BottomActionsBarProps> = ({
 
   return (
     <div 
-      className="absolute bottom-0 left-0 right-0 z-30 transition-all duration-300 backdrop-blur-sm"
+      className="absolute bottom-0 left-0 right-0 z-50 transition-all duration-300 backdrop-blur-sm"
       style={{ 
         backgroundColor: `${currentTheme.colors.card}F2`,
         // Removing standard border/boxShadow to use physical line below
