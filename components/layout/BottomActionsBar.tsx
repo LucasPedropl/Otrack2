@@ -36,24 +36,22 @@ export const BottomActionsBar: React.FC<BottomActionsBarProps> = ({
 
   // Calcula a largura da sidebar primária
   // Desktop: 64 (256px) ou 20 (80px)
-  // Mobile: 0px (assumindo hidden) ou ajustado via media query, mas aqui focamos no desktop layout
   const primaryWidthClass = isPrimaryCollapsed ? 'md:ml-20' : 'md:ml-64';
 
   // Calcula a largura da sidebar secundária
   let secondaryOffset = 0;
   if (isSettingsOpen) {
-    secondaryOffset = isSettingsCollapsed ? 80 : 256; // 80px (w-20) or 256px (w-64)
+    // 20 (80px) se colapsado, 64 (256px) se expandido
+    secondaryOffset = isSettingsCollapsed ? 80 : 256; 
   }
 
   return (
     <div 
-      // Usamos style para o left offset dinamico da secundária, e tailwind class para a primária
-      className={`fixed bottom-0 right-0 left-0 ${primaryWidthClass} z-30 border-t transition-all duration-300 backdrop-blur-sm`}
+      className={`fixed bottom-0 right-0 left-0 ${primaryWidthClass} z-30 border-t border-solid transition-all duration-300 backdrop-blur-sm`}
       style={{ 
-        left: isSettingsOpen ? `${secondaryOffset}px` : '0px', // Offset relativo ao container pai (que já tem margin da primary)
-        marginLeft: '', // O margin left é tratado pela classe do tailwind relativa a tela
-        transform: `translateX(${secondaryOffset}px)`, // Alternativa: Mover via transform
-        width: `calc(100% - ${isPrimaryCollapsed ? '80px' : '256px'} - ${secondaryOffset}px)`, // Largura correta
+        left: isSettingsOpen ? `${secondaryOffset}px` : '0px',
+        marginLeft: '',
+        width: `calc(100% - ${isPrimaryCollapsed ? '80px' : '256px'} - ${secondaryOffset}px)`,
         backgroundColor: `${currentTheme.colors.card}F2`,
         borderColor: currentTheme.colors.border,
         boxShadow: '0 -1px 2px 0 rgba(0, 0, 0, 0.05)'
@@ -93,7 +91,7 @@ export const BottomActionsBar: React.FC<BottomActionsBarProps> = ({
              <button
                onClick={() => onPageChange(currentPage - 1)}
                disabled={currentPage === 1 || totalItems === 0}
-               className="p-2 rounded-lg border hover:bg-black/5 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+               className="p-2 rounded-lg border border-solid hover:bg-black/5 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                style={{ 
                  borderColor: currentTheme.colors.border, 
                  color: currentTheme.colors.text 
@@ -109,7 +107,7 @@ export const BottomActionsBar: React.FC<BottomActionsBarProps> = ({
              <button
                onClick={() => onPageChange(currentPage + 1)}
                disabled={currentPage === totalPages || totalItems === 0}
-               className="p-2 rounded-lg border hover:bg-black/5 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+               className="p-2 rounded-lg border border-solid hover:bg-black/5 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                style={{ 
                  borderColor: currentTheme.colors.border, 
                  color: currentTheme.colors.text 

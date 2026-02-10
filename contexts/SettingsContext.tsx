@@ -47,7 +47,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   return (
     <SettingsContext.Provider value={{ 
       isSettingsOpen, 
-      isSettingsCollapsed, 
+      isSettingsCollapsed,
       toggleSettingsOpen, 
       toggleSettingsCollapse,
       openSettings,
