@@ -27,6 +27,21 @@ export interface ConstructionSite {
   createdAt: Date;
 }
 
+// Novos tipos para Configurações
+export interface MeasurementUnit {
+  id?: string;
+  name: string; // Nome (ex: Balde)
+  abbreviation: string; // Abreviação (ex: Bd)
+}
+
+export interface ItemCategory {
+  id?: string;
+  type: 'Produto' | 'Serviço'; // Tipo
+  category: string; // Categoria
+  subcategory: string; // Subcategoria
+  registrationType: 'Próprio' | 'Padrão'; // Cadastro
+}
+
 export interface ThemeColors {
   background: string;
   sidebar: string;

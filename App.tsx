@@ -5,6 +5,8 @@ import DashboardPage from './app/admin/dashboard/Dashboard';
 import SettingsPage from './app/admin/settings/Settings';
 import InsumosPage from './app/admin/insumos/Insumos';
 import ObrasPage from './app/admin/obras/Obras';
+import UnidadesPage from './app/admin/unidades/UnidadesPage';
+import CategoriasPage from './app/admin/categorias/CategoriasPage';
 import PlaceholderPage from './app/admin/placeholders/Placeholder';
 import ObraRoot from './app/admin/obra/ObraRoot';
 import ObraOverview from './app/admin/obra/pages/ObraOverview';
@@ -50,24 +52,8 @@ const App: React.FC = () => {
             
             {/* Orçamento */}
             <Route path="/admin/insumos" element={<InsumosPage />} />
-            <Route 
-              path="/admin/unidades" 
-              element={
-                <PlaceholderPage 
-                  title="Unidades de Medidas" 
-                  description="Gerenciamento de unidades de medida para insumos e serviços."
-                />
-              } 
-            />
-            <Route 
-              path="/admin/categorias" 
-              element={
-                <PlaceholderPage 
-                  title="Categorias de Insumos" 
-                  description="Gerenciamento de grupos e categorias para classificação de materiais."
-                />
-              } 
-            />
+            <Route path="/admin/unidades" element={<UnidadesPage />} />
+            <Route path="/admin/categorias" element={<CategoriasPage />} />
 
             {/* Acesso ao Sistema */}
             <Route 

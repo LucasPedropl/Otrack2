@@ -3,6 +3,7 @@ import { LayoutProps, ConstructionSite } from '../../types';
 import { LayoutDashboard, HardHat, Settings, ChevronLeft, ChevronRight, Building2, Calculator, ShieldCheck, ChevronDown, ChevronUp, Users, FileText, Ruler, Tag, ArrowLeft, FolderDot } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
+import { SidebarProvider, useSidebar } from '../../contexts/SidebarContext';
 import { TopBar } from './TopBar';
 import { constructionService } from '../../services/constructionService';
 
@@ -16,20 +17,16 @@ const SETTINGS_PATHS = [
   '/admin/settings' // Generic settings page
 ];
 
-export const AdminLayout: React.FC<LayoutProps> = ({ children }) => {
+// Inner component that consumes the SidebarContext
+const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { currentTheme } = useTheme();
+  const { isCollapsed, toggleSidebar } = useSidebar();
   
   // Sites State
   const [sites, setSites] = useState<ConstructionSite[]>([]);
   
-  // Main Sidebar State
-  const [isCollapsed, setIsCollapsed] = useState(() => {
-    const saved = localStorage.getItem('obralog_sidebar_collapsed');
-    return saved === 'true';
-  });
-
   // Tooltip State
   const [hoveredTooltip, setHoveredTooltip] = useState<{ label: string; top: number } | null>(null);
 
@@ -57,12 +54,6 @@ export const AdminLayout: React.FC<LayoutProps> = ({ children }) => {
     };
     fetchSites();
   }, []);
-
-  const toggleSidebar = () => {
-    const newState = !isCollapsed;
-    setIsCollapsed(newState);
-    localStorage.setItem('obralog_sidebar_collapsed', String(newState));
-  };
 
   const toggleSettings = () => {
     const newState = !isSettingsOpen;
@@ -399,8 +390,7 @@ export const AdminLayout: React.FC<LayoutProps> = ({ children }) => {
                 <button 
                    onClick={() => setIsSettingsOpen(false)}
                    className="mt-8 flex items-center gap-2 text-sm hover:underline opacity-70 hover:opacity-100"
-                   style={{ color: currentTheme.colors.text }}
-                >
+                   style={{ color: currentTheme.colors.text }}>
                    <ArrowLeft size={16} />
                    Voltar para tela anterior
                 </button>
@@ -411,5 +401,13 @@ export const AdminLayout: React.FC<LayoutProps> = ({ children }) => {
         </div>
       </div>
     </div>
+  );
+};
+
+export const AdminLayout: React.FC<LayoutProps> = (props) => {
+  return (
+    <SidebarProvider>
+      <AdminLayoutContent {...props} />
+    </SidebarProvider>
   );
 };
