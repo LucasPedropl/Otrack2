@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { LayoutProps, ConstructionSite } from '../../types';
-import { LayoutDashboard, HardHat, Settings, ChevronLeft, ChevronRight, Building2, Calculator, ShieldCheck, ChevronDown, ChevronUp, Users, FileText, Ruler, Tag, ArrowLeft, FolderDot } from 'lucide-react';
+import { LayoutDashboard, HardHat, Settings, ChevronLeft, ChevronRight, Building2, Calculator, ShieldCheck, ChevronDown, ChevronUp, Users, FileText, Ruler, Tag, ArrowLeft, FolderDot, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 import { SidebarProvider, useSidebar } from '../../contexts/SidebarContext';
+import { SettingsProvider, useSettingsSidebar } from '../../contexts/SettingsContext';
 import { TopBar } from './TopBar';
 import { constructionService } from '../../services/constructionService';
 
@@ -14,27 +15,31 @@ const SETTINGS_PATHS = [
   '/admin/categorias',
   '/admin/perfis',
   '/admin/usuarios',
-  '/admin/settings' // Generic settings page
+  '/admin/settings'
 ];
 
-// Inner component that consumes the SidebarContext
+// Inner component that consumes both SidebarContext and SettingsContext
 const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { currentTheme } = useTheme();
-  const { isCollapsed, toggleSidebar } = useSidebar();
+  
+  // Contexts
+  const { isCollapsed: isPrimaryCollapsed, toggleSidebar: togglePrimarySidebar } = useSidebar();
+  const { 
+    isSettingsOpen, 
+    isSettingsCollapsed, 
+    toggleSettingsOpen, 
+    toggleSettingsCollapse, 
+    openSettings,
+    closeSettings
+  } = useSettingsSidebar();
   
   // Sites State
   const [sites, setSites] = useState<ConstructionSite[]>([]);
   
   // Tooltip State
-  const [hoveredTooltip, setHoveredTooltip] = useState<{ label: string; top: number } | null>(null);
-
-  // Settings Sidebar State
-  const [isSettingsOpen, setIsSettingsOpen] = useState(() => {
-    const saved = localStorage.getItem('obralog_settings_open');
-    return saved === 'true'; 
-  });
+  const [hoveredTooltip, setHoveredTooltip] = useState<{ label: string; top: number, left: number } | null>(null);
 
   // Accordion State for Settings Menu
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({
@@ -55,22 +60,23 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
     fetchSites();
   }, []);
 
-  const toggleSettings = () => {
-    const newState = !isSettingsOpen;
-    setIsSettingsOpen(newState);
-    localStorage.setItem('obralog_settings_open', String(newState));
-  };
-
   const toggleMenu = (menu: string) => {
+    if (isSettingsCollapsed) {
+      toggleSettingsCollapse(); // Auto expand if clicking a menu
+    }
     setOpenMenus(prev => ({ ...prev, [menu]: !prev[menu] }));
   };
 
-  const handleTooltipEnter = (e: React.MouseEvent<HTMLElement>, label: string) => {
-    if (!isCollapsed) return;
+  const handleTooltip = (e: React.MouseEvent<HTMLElement>, label: string, sidebarType: 'primary' | 'secondary') => {
+    // Only show if the respective sidebar is collapsed
+    if (sidebarType === 'primary' && !isPrimaryCollapsed) return;
+    if (sidebarType === 'secondary' && !isSettingsCollapsed) return;
+
     const rect = e.currentTarget.getBoundingClientRect();
     setHoveredTooltip({
       label,
-      top: rect.top + (rect.height / 2)
+      top: rect.top + (rect.height / 2),
+      left: rect.right + 10
     });
   };
 
@@ -87,8 +93,7 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
   const handlePrimaryNavigate = (path: string) => {
     navigate(path);
     if (isSettingsOpen) {
-      setIsSettingsOpen(false);
-      localStorage.setItem('obralog_settings_open', 'false');
+       closeSettings();
     }
   };
 
@@ -109,7 +114,7 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
     >
       {/* 1. PRIMARY SIDEBAR (Full Height, Left) */}
       <aside 
-        className={`flex-shrink-0 transition-all duration-300 border-r flex flex-col relative z-40 ${isCollapsed ? 'w-20' : 'w-full md:w-64'}`}
+        className={`flex-shrink-0 transition-all duration-300 border-r flex flex-col relative z-40 ${isPrimaryCollapsed ? 'w-20' : 'w-full md:w-64'}`}
         style={{ 
           backgroundColor: currentTheme.colors.sidebar, 
           color: currentTheme.colors.sidebarText,
@@ -118,7 +123,7 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
       >
         {/* Toggle Button */}
         <button
-          onClick={toggleSidebar}
+          onClick={togglePrimarySidebar}
           className="absolute hidden md:flex items-center justify-center h-6 w-6 rounded-lg border shadow-sm z-50 transition-colors"
           style={{ 
             top: '81px',
@@ -129,16 +134,16 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
             color: currentTheme.colors.text
           }}
         >
-          {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+          {isPrimaryCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
         </button>
 
         {/* Logo/Header Area */}
         <div 
-          className={`h-[81px] p-6 flex items-center border-b transition-all ${isCollapsed ? 'justify-center' : 'space-x-3'}`}
+          className={`h-[81px] p-6 flex items-center border-b transition-all ${isPrimaryCollapsed ? 'justify-center' : 'space-x-3'}`}
           style={{ borderColor: currentTheme.colors.border }}
         >
           <HardHat className="h-8 w-8 flex-shrink-0" style={{ color: currentTheme.colors.primary }} />
-          {!isCollapsed && (
+          {!isPrimaryCollapsed && (
             <div className="overflow-hidden whitespace-nowrap">
               <h1 className="text-xl font-bold tracking-tight">ObraLog</h1>
               <p className="text-xs opacity-70">Gestão de Obra</p>
@@ -147,39 +152,38 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
         </div>
 
         {/* Primary Nav Items */}
-        <nav className="p-4 space-y-2 flex-1 overflow-y-auto overflow-x-hidden">
-          {/* System Pages */}
+        <nav className="p-4 space-y-2 flex-1 overflow-y-auto overflow-x-hidden no-scrollbar">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
             return (
               <button
                 key={item.path}
                 onClick={() => handlePrimaryNavigate(item.path)}
-                onMouseEnter={(e) => handleTooltipEnter(e, item.label)}
+                onMouseEnter={(e) => handleTooltip(e, item.label, 'primary')}
                 onMouseLeave={handleTooltipLeave}
-                className={`group relative w-full flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-3 rounded-lg transition-all hover:bg-white/5`}
+                className={`group relative w-full flex items-center ${isPrimaryCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-3 rounded-lg transition-all hover:bg-white/5`}
                 style={{
                   backgroundColor: 'transparent',
                   color: isActive ? currentTheme.colors.primary : currentTheme.colors.sidebarText,
                 }}
               >
-                <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} w-full`} 
+                <div className={`flex items-center ${isPrimaryCollapsed ? 'justify-center' : 'space-x-3'} w-full`} 
                      style={{ opacity: isActive ? 1 : 0.6 }}>
                   <item.icon className="h-5 w-5 flex-shrink-0" />
-                  {!isCollapsed && <span className="font-medium whitespace-nowrap">{item.label}</span>}
+                  {!isPrimaryCollapsed && <span className="font-medium whitespace-nowrap">{item.label}</span>}
                 </div>
               </button>
             );
           })}
 
-          {/* SEPARATOR: Projects/Obras */}
+          {/* SEPARATOR: Projects */}
           <div className="pt-4 mt-2">
-            {!isCollapsed && (
+            {!isPrimaryCollapsed && (
               <p className="px-4 text-xs font-bold uppercase tracking-wider mb-2 opacity-50">
                 Obras Ativas
               </p>
             )}
-            {isCollapsed && <div className="border-t mx-4 mb-4 opacity-20" style={{ borderColor: currentTheme.colors.sidebarText }}></div>}
+            {isPrimaryCollapsed && <div className="border-t mx-4 mb-4 opacity-20" style={{ borderColor: currentTheme.colors.sidebarText }}></div>}
             
             <div className="space-y-1">
               {sites.map((site) => {
@@ -188,120 +192,143 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
                   <button
                     key={site.id}
                     onClick={() => handlePrimaryNavigate(`/admin/obra/${site.id}`)}
-                    onMouseEnter={(e) => handleTooltipEnter(e, site.name)}
+                    onMouseEnter={(e) => handleTooltip(e, site.name, 'primary')}
                     onMouseLeave={handleTooltipLeave}
-                    className={`group relative w-full flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-2 rounded-lg transition-all hover:bg-white/5`}
+                    className={`group relative w-full flex items-center ${isPrimaryCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-2 rounded-lg transition-all hover:bg-white/5`}
                     style={{
                       backgroundColor: 'transparent',
                       color: isActive ? currentTheme.colors.primary : currentTheme.colors.sidebarText,
                     }}
                   >
-                    <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} w-full`} 
+                    <div className={`flex items-center ${isPrimaryCollapsed ? 'justify-center' : 'space-x-3'} w-full`} 
                          style={{ opacity: isActive ? 1 : 0.6 }}>
                       <FolderDot className="h-4 w-4 flex-shrink-0" />
-                      {!isCollapsed && <span className="font-medium whitespace-nowrap text-sm truncate">{site.name}</span>}
+                      {!isPrimaryCollapsed && <span className="font-medium whitespace-nowrap text-sm truncate">{site.name}</span>}
                     </div>
                   </button>
                 );
               })}
-              
-              {sites.length === 0 && !isCollapsed && (
-                <p className="px-4 text-xs opacity-40 italic">Nenhuma obra cadastrada</p>
-              )}
             </div>
           </div>
         </nav>
 
-        {/* Generic Settings Link in Primary Sidebar */}
+        {/* Generic Settings Link */}
         <div 
           className="p-4 border-t"
           style={{ borderColor: currentTheme.colors.border }}
         >
           <button
             onClick={() => handlePrimaryNavigate('/admin/settings')}
-            onMouseEnter={(e) => handleTooltipEnter(e, 'Aparência')}
+            onMouseEnter={(e) => handleTooltip(e, 'Aparência', 'primary')}
             onMouseLeave={handleTooltipLeave}
-            className={`group relative w-full flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-3 rounded-lg transition-all hover:bg-white/5`}
+            className={`group relative w-full flex items-center ${isPrimaryCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-3 rounded-lg transition-all hover:bg-white/5`}
             style={{
               backgroundColor: 'transparent',
               color: location.pathname === '/admin/settings' ? currentTheme.colors.primary : currentTheme.colors.sidebarText,
             }}
           >
-            <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} w-full`} 
+            <div className={`flex items-center ${isPrimaryCollapsed ? 'justify-center' : 'space-x-3'} w-full`} 
                  style={{ opacity: location.pathname === '/admin/settings' ? 1 : 0.6 }}>
               <Settings className="h-5 w-5 flex-shrink-0" />
-              {!isCollapsed && <span className="font-medium whitespace-nowrap">Aparência</span>}
+              {!isPrimaryCollapsed && <span className="font-medium whitespace-nowrap">Aparência</span>}
             </div>
           </button>
         </div>
-
-        {/* Fixed Tooltip Portal (Rendered in Sidebar but Fixed Position) */}
-        {isCollapsed && hoveredTooltip && (
-           <div 
-             className="fixed left-20 ml-3 px-3 py-1.5 rounded-md text-xs font-medium z-[100] shadow-lg border animate-in fade-in zoom-in-95 duration-100 whitespace-nowrap pointer-events-none"
-             style={{ 
-               top: hoveredTooltip.top,
-               transform: 'translateY(-50%)',
-               backgroundColor: currentTheme.colors.card,
-               color: currentTheme.colors.text,
-               borderColor: currentTheme.colors.border
-             }}
-           >
-             {hoveredTooltip.label}
-           </div>
-        )}
       </aside>
 
       {/* RIGHT SIDE WRAPPER */}
       <div className="flex-1 flex flex-col h-full overflow-hidden">
         
         {/* TOP BAR */}
-        <TopBar onToggleSettings={toggleSettings} isSettingsOpen={isSettingsOpen} />
+        <TopBar onToggleSettings={toggleSettingsOpen} isSettingsOpen={isSettingsOpen} />
 
-        {/* CONTENT ROW (Settings Sidebar + Toggle + Page Content) */}
+        {/* CONTENT ROW */}
         <div className="flex-1 flex overflow-hidden relative">
           
           {/* 2. SECONDARY SIDEBAR (SETTINGS PANEL) */}
           <aside
-            className={`flex-shrink-0 transition-all duration-300 border-r overflow-y-auto flex flex-col z-20 ${isSettingsOpen ? 'w-64 translate-x-0' : 'w-0 -translate-x-full opacity-0 overflow-hidden border-none'}`}
+            className={`flex-shrink-0 transition-all duration-300 border-r overflow-y-auto flex flex-col z-20 
+              ${isSettingsOpen ? (isSettingsCollapsed ? 'w-20' : 'w-64') : 'w-0 border-none overflow-hidden'}
+            `}
             style={{ 
                 backgroundColor: currentTheme.colors.background === '#f8fafc' ? '#ffffff' : currentTheme.colors.sidebar,
                 borderColor: currentTheme.colors.border,
-                height: '100%' 
+                height: '100%',
+                opacity: isSettingsOpen ? 1 : 0,
+                transform: isSettingsOpen ? 'translateX(0)' : 'translateX(-100%)'
             }}
           >
+            {/* Secondary Sidebar Header with Collapse Toggle */}
+            <div className={`flex items-center justify-between p-4 border-b h-[57px] ${isSettingsCollapsed ? 'justify-center' : ''}`} style={{ borderColor: currentTheme.colors.border }}>
+               {!isSettingsCollapsed && (
+                 <span className="text-xs font-bold uppercase tracking-wider opacity-50" style={{ color: currentTheme.colors.text }}>Configurações</span>
+               )}
+               <button 
+                  onClick={toggleSettingsCollapse}
+                  className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                  style={{ color: currentTheme.colors.textSecondary }}
+                  title={isSettingsCollapsed ? "Expandir" : "Reduzir"}
+               >
+                  {isSettingsCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+               </button>
+            </div>
+
             <div className="p-4 space-y-6 mt-2">
                {/* GROUP 1: ORÇAMENTO */}
                <div>
                   <button 
                     onClick={() => toggleMenu('orcamento')}
-                    className="w-full flex items-center justify-between mb-2 p-2 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                    onMouseEnter={(e) => handleTooltip(e, 'Orçamento', 'secondary')}
+                    onMouseLeave={handleTooltipLeave}
+                    className={`w-full flex items-center mb-2 p-2 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-colors ${isSettingsCollapsed ? 'justify-center' : 'justify-between'}`}
                   >
-                     <div className="flex items-center gap-2 font-semibold" style={{ color: currentTheme.colors.text }}>
+                     <div className={`flex items-center gap-2 font-semibold ${isSettingsCollapsed ? 'justify-center' : ''}`} style={{ color: currentTheme.colors.text }}>
                         <Calculator size={18} />
-                        <span>Orçamento</span>
+                        {!isSettingsCollapsed && <span>Orçamento</span>}
                      </div>
-                     {openMenus['orcamento'] ? <ChevronUp size={14} style={{ color: currentTheme.colors.textSecondary }} /> : <ChevronDown size={14} style={{ color: currentTheme.colors.textSecondary }} />}
+                     {!isSettingsCollapsed && (openMenus['orcamento'] ? <ChevronUp size={14} style={{ color: currentTheme.colors.textSecondary }} /> : <ChevronDown size={14} style={{ color: currentTheme.colors.textSecondary }} />)}
                   </button>
 
-                  {openMenus['orcamento'] && (
-                    <div className="space-y-1 ml-4 pl-4 border-l" style={{ borderColor: currentTheme.colors.border }}>
-                       <button onClick={() => handleSettingsNavigate('/admin/insumos')} className={`block w-full text-left py-2 px-3 rounded text-sm transition-colors ${location.pathname === '/admin/insumos' ? 'bg-black/5 dark:bg-white/10 font-medium' : 'hover:bg-black/5 dark:hover:bg-white/5'}`} style={{ color: location.pathname === '/admin/insumos' ? currentTheme.colors.primary : currentTheme.colors.textSecondary }}>
-                          <div className="flex items-center gap-2">
+                  {/* Links (Only show children if not collapsed OR show as tooltips? Usually nested menus in collapsed mode are hard. 
+                      Strategy: If collapsed, clicking the header does nothing or expands the sidebar. 
+                      Let's hide children if collapsed for simplicity, user must expand to see sub-items, OR we show icons for children if they had distinct icons)
+                  */}
+                  {(openMenus['orcamento'] || isSettingsCollapsed) && (
+                    <div className={`space-y-1 ${isSettingsCollapsed ? '' : 'ml-4 pl-4 border-l'}`} style={{ borderColor: currentTheme.colors.border }}>
+                       <button 
+                          onClick={() => handleSettingsNavigate('/admin/insumos')} 
+                          onMouseEnter={(e) => handleTooltip(e, 'Insumos', 'secondary')}
+                          onMouseLeave={handleTooltipLeave}
+                          className={`block w-full text-left py-2 px-3 rounded text-sm transition-colors ${location.pathname === '/admin/insumos' ? 'bg-black/5 dark:bg-white/10 font-medium' : 'hover:bg-black/5 dark:hover:bg-white/5'} ${isSettingsCollapsed ? 'flex justify-center px-0' : ''}`} 
+                          style={{ color: location.pathname === '/admin/insumos' ? currentTheme.colors.primary : currentTheme.colors.textSecondary }}
+                       >
+                          <div className={`flex items-center gap-2 ${isSettingsCollapsed ? 'justify-center' : ''}`}>
                             <FileText size={14} />
-                            Insumos
+                            {!isSettingsCollapsed && 'Insumos'}
                           </div>
                        </button>
-                       <button onClick={() => handleSettingsNavigate('/admin/unidades')} className={`block w-full text-left py-2 px-3 rounded text-sm transition-colors ${location.pathname === '/admin/unidades' ? 'bg-black/5 dark:bg-white/10 font-medium' : 'hover:bg-black/5 dark:hover:bg-white/5'}`} style={{ color: location.pathname === '/admin/unidades' ? currentTheme.colors.primary : currentTheme.colors.textSecondary }}>
-                          <div className="flex items-center gap-2">
+                       <button 
+                          onClick={() => handleSettingsNavigate('/admin/unidades')} 
+                          onMouseEnter={(e) => handleTooltip(e, 'Unid. de Medidas', 'secondary')}
+                          onMouseLeave={handleTooltipLeave}
+                          className={`block w-full text-left py-2 px-3 rounded text-sm transition-colors ${location.pathname === '/admin/unidades' ? 'bg-black/5 dark:bg-white/10 font-medium' : 'hover:bg-black/5 dark:hover:bg-white/5'} ${isSettingsCollapsed ? 'flex justify-center px-0' : ''}`} 
+                          style={{ color: location.pathname === '/admin/unidades' ? currentTheme.colors.primary : currentTheme.colors.textSecondary }}
+                       >
+                          <div className={`flex items-center gap-2 ${isSettingsCollapsed ? 'justify-center' : ''}`}>
                             <Ruler size={14} />
-                            Unid. de Medidas
+                            {!isSettingsCollapsed && 'Unid. de Medidas'}
                           </div>
                        </button>
-                       <button onClick={() => handleSettingsNavigate('/admin/categorias')} className={`block w-full text-left py-2 px-3 rounded text-sm transition-colors ${location.pathname === '/admin/categorias' ? 'bg-black/5 dark:bg-white/10 font-medium' : 'hover:bg-black/5 dark:hover:bg-white/5'}`} style={{ color: location.pathname === '/admin/categorias' ? currentTheme.colors.primary : currentTheme.colors.textSecondary }}>
-                          <div className="flex items-center gap-2">
+                       <button 
+                          onClick={() => handleSettingsNavigate('/admin/categorias')} 
+                          onMouseEnter={(e) => handleTooltip(e, 'Categorias', 'secondary')}
+                          onMouseLeave={handleTooltipLeave}
+                          className={`block w-full text-left py-2 px-3 rounded text-sm transition-colors ${location.pathname === '/admin/categorias' ? 'bg-black/5 dark:bg-white/10 font-medium' : 'hover:bg-black/5 dark:hover:bg-white/5'} ${isSettingsCollapsed ? 'flex justify-center px-0' : ''}`} 
+                          style={{ color: location.pathname === '/admin/categorias' ? currentTheme.colors.primary : currentTheme.colors.textSecondary }}
+                       >
+                          <div className={`flex items-center gap-2 ${isSettingsCollapsed ? 'justify-center' : ''}`}>
                             <Tag size={14} />
-                            Categorias
+                            {!isSettingsCollapsed && 'Categorias'}
                           </div>
                        </button>
                     </div>
@@ -312,27 +339,41 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
                <div>
                   <button 
                     onClick={() => toggleMenu('acesso')}
-                    className="w-full flex items-center justify-between mb-2 p-2 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                    onMouseEnter={(e) => handleTooltip(e, 'Acesso ao sistema', 'secondary')}
+                    onMouseLeave={handleTooltipLeave}
+                    className={`w-full flex items-center mb-2 p-2 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-colors ${isSettingsCollapsed ? 'justify-center' : 'justify-between'}`}
                   >
-                     <div className="flex items-center gap-2 font-semibold" style={{ color: currentTheme.colors.text }}>
+                     <div className={`flex items-center gap-2 font-semibold ${isSettingsCollapsed ? 'justify-center' : ''}`} style={{ color: currentTheme.colors.text }}>
                         <ShieldCheck size={18} />
-                        <span>Acesso ao sistema</span>
+                        {!isSettingsCollapsed && <span>Acesso ao sistema</span>}
                      </div>
-                     {openMenus['acesso'] ? <ChevronUp size={14} style={{ color: currentTheme.colors.textSecondary }} /> : <ChevronDown size={14} style={{ color: currentTheme.colors.textSecondary }} />}
+                     {!isSettingsCollapsed && (openMenus['acesso'] ? <ChevronUp size={14} style={{ color: currentTheme.colors.textSecondary }} /> : <ChevronDown size={14} style={{ color: currentTheme.colors.textSecondary }} />)}
                   </button>
 
-                  {openMenus['acesso'] && (
-                    <div className="space-y-1 ml-4 pl-4 border-l" style={{ borderColor: currentTheme.colors.border }}>
-                       <button onClick={() => handleSettingsNavigate('/admin/perfis')} className={`block w-full text-left py-2 px-3 rounded text-sm transition-colors ${location.pathname === '/admin/perfis' ? 'bg-black/5 dark:bg-white/10 font-medium' : 'hover:bg-black/5 dark:hover:bg-white/5'}`} style={{ color: location.pathname === '/admin/perfis' ? currentTheme.colors.primary : currentTheme.colors.textSecondary }}>
-                          <div className="flex items-center gap-2">
+                  {(openMenus['acesso'] || isSettingsCollapsed) && (
+                    <div className={`space-y-1 ${isSettingsCollapsed ? '' : 'ml-4 pl-4 border-l'}`} style={{ borderColor: currentTheme.colors.border }}>
+                       <button 
+                          onClick={() => handleSettingsNavigate('/admin/perfis')} 
+                          onMouseEnter={(e) => handleTooltip(e, 'Perfis de acesso', 'secondary')}
+                          onMouseLeave={handleTooltipLeave}
+                          className={`block w-full text-left py-2 px-3 rounded text-sm transition-colors ${location.pathname === '/admin/perfis' ? 'bg-black/5 dark:bg-white/10 font-medium' : 'hover:bg-black/5 dark:hover:bg-white/5'} ${isSettingsCollapsed ? 'flex justify-center px-0' : ''}`} 
+                          style={{ color: location.pathname === '/admin/perfis' ? currentTheme.colors.primary : currentTheme.colors.textSecondary }}
+                       >
+                          <div className={`flex items-center gap-2 ${isSettingsCollapsed ? 'justify-center' : ''}`}>
                             <ShieldCheck size={14} />
-                            Perfis de acesso
+                            {!isSettingsCollapsed && 'Perfis de acesso'}
                           </div>
                        </button>
-                       <button onClick={() => handleSettingsNavigate('/admin/usuarios')} className={`block w-full text-left py-2 px-3 rounded text-sm transition-colors ${location.pathname === '/admin/usuarios' ? 'bg-black/5 dark:bg-white/10 font-medium' : 'hover:bg-black/5 dark:hover:bg-white/5'}`} style={{ color: location.pathname === '/admin/usuarios' ? currentTheme.colors.primary : currentTheme.colors.textSecondary }}>
-                          <div className="flex items-center gap-2">
+                       <button 
+                          onClick={() => handleSettingsNavigate('/admin/usuarios')} 
+                          onMouseEnter={(e) => handleTooltip(e, 'Usuários', 'secondary')}
+                          onMouseLeave={handleTooltipLeave}
+                          className={`block w-full text-left py-2 px-3 rounded text-sm transition-colors ${location.pathname === '/admin/usuarios' ? 'bg-black/5 dark:bg-white/10 font-medium' : 'hover:bg-black/5 dark:hover:bg-white/5'} ${isSettingsCollapsed ? 'flex justify-center px-0' : ''}`} 
+                          style={{ color: location.pathname === '/admin/usuarios' ? currentTheme.colors.primary : currentTheme.colors.textSecondary }}
+                       >
+                          <div className={`flex items-center gap-2 ${isSettingsCollapsed ? 'justify-center' : ''}`}>
                             <Users size={14} />
-                            Usuários do sistema
+                            {!isSettingsCollapsed && 'Usuários do sistema'}
                           </div>
                        </button>
                     </div>
@@ -341,12 +382,12 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
             </div>
           </aside>
 
-          {/* TOGGLE STRIP */}
+          {/* TOGGLE STRIP (Opens/Closes the Secondary Sidebar) */}
           {showToggleStrip && (
             <div 
               className="relative flex-shrink-0 z-30 flex items-center justify-start cursor-pointer group"
               style={{ width: '12px', marginLeft: '-1px' }}
-              onClick={toggleSettings}
+              onClick={toggleSettingsOpen}
               title={isSettingsOpen ? "Fechar Menu" : "Abrir Menu"}
             >
               <div 
@@ -369,7 +410,6 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
           {/* 3. MAIN CONTENT AREA */}
           <main className="flex-1 overflow-y-auto relative w-full h-full">
             {showContent ? (
-              // If it's an Obra page, we remove padding to allow the Obra layout to handle full width
               <div className={location.pathname.startsWith('/admin/obra/') ? "" : "p-8"}>
                 {children}
               </div>
@@ -388,7 +428,7 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
                   Selecione uma opção no menu lateral para gerenciar os cadastros e configurações do sistema.
                 </p>
                 <button 
-                   onClick={() => setIsSettingsOpen(false)}
+                   onClick={closeSettings}
                    className="mt-8 flex items-center gap-2 text-sm hover:underline opacity-70 hover:opacity-100"
                    style={{ color: currentTheme.colors.text }}>
                    <ArrowLeft size={16} />
@@ -400,6 +440,23 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
 
         </div>
       </div>
+
+      {/* Global Fixed Tooltip */}
+      {hoveredTooltip && (
+           <div 
+             className="fixed px-3 py-1.5 rounded-md text-xs font-medium z-[100] shadow-lg border animate-in fade-in zoom-in-95 duration-100 whitespace-nowrap pointer-events-none"
+             style={{ 
+               top: hoveredTooltip.top,
+               left: hoveredTooltip.left,
+               transform: 'translateY(-50%)',
+               backgroundColor: currentTheme.colors.card,
+               color: currentTheme.colors.text,
+               borderColor: currentTheme.colors.border
+             }}
+           >
+             {hoveredTooltip.label}
+           </div>
+      )}
     </div>
   );
 };
@@ -407,7 +464,9 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
 export const AdminLayout: React.FC<LayoutProps> = (props) => {
   return (
     <SidebarProvider>
-      <AdminLayoutContent {...props} />
+      <SettingsProvider>
+        <AdminLayoutContent {...props} />
+      </SettingsProvider>
     </SidebarProvider>
   );
 };

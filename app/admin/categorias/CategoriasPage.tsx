@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { settingsService } from '../../../services/settingsService';
 import { ItemCategory } from '../../../types';
 import { Plus, Search, Tag, Trash2, Edit } from 'lucide-react';
@@ -13,6 +13,9 @@ const CategoriasPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   
+  // File Input Ref
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 12;
@@ -97,19 +100,62 @@ const CategoriasPage: React.FC = () => {
      setEditingId(null);
   };
 
-  const handleImport = async () => {
-    if(window.confirm("Isso importará a lista padrão completa de categorias. Deseja continuar?")) {
-      setIsLoading(true);
-      try {
-        await settingsService.importDefaultCategories();
-        alert("Importação concluída com sucesso!");
-        fetchCategories();
-      } catch (error) {
-        console.error(error);
-        alert("Erro na importação.");
-      } finally {
-        setIsLoading(false);
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Reset input
+    e.target.value = '';
+
+    if (file.type === "application/pdf") {
+      alert("A importação de PDF requer um processamento de OCR avançado. Por favor, utilize um arquivo Excel (.xlsx) ou CSV para uma importação precisa e imediata.");
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const wb = window.XLSX.read(arrayBuffer, { type: 'array' });
+      const wsname = wb.SheetNames[0];
+      const ws = wb.Sheets[wsname];
+      const data: any[] = window.XLSX.utils.sheet_to_json(ws);
+
+      if (data.length === 0) {
+        throw new Error("Planilha vazia ou formato inválido");
       }
+
+      let count = 0;
+      for (const row of data) {
+         // Headers: Tipo, Categoria, Subcategoria, Cadastro
+         const type = row['Tipo'] || row['TIPO'] || 'Produto';
+         const category = row['Categoria'] || row['CATEGORIA'];
+         const sub = row['Subcategoria'] || row['SUBCATEGORIA'] || '';
+         const reg = row['Cadastro'] || row['CADASTRO'] || 'Padrão';
+
+         if (category) {
+           await settingsService.addCategory({
+             type: type as any,
+             category: String(category).trim(),
+             subcategory: String(sub).trim(),
+             registrationType: reg as any
+           });
+           count++;
+         }
+      }
+
+      alert(`${count} categorias importadas com sucesso!`);
+      fetchCategories();
+
+    } catch (error) {
+      console.error("Import error:", error);
+      alert("Erro ao importar arquivo. Verifique se é um Excel/CSV válido.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -141,6 +187,15 @@ const CategoriasPage: React.FC = () => {
 
   return (
     <>
+      {/* Hidden File Input */}
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        onChange={handleFileChange} 
+        style={{ display: 'none' }} 
+        accept=".xlsx, .xls, .csv, .pdf"
+      />
+
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <div className="flex items-center gap-4 w-full sm:w-auto">
           <div className="relative w-full sm:w-72">
@@ -245,7 +300,7 @@ const CategoriasPage: React.FC = () => {
         currentPage={currentPage}
         itemsPerPage={itemsPerPage}
         onPageChange={setCurrentPage}
-        onImport={handleImport}
+        onImport={handleImportClick}
         onExport={handleExport}
         isImporting={isLoading}
       />

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { settingsService } from '../../../services/settingsService';
 import { MeasurementUnit } from '../../../types';
 import { Plus, Search, Ruler, Trash2, Edit } from 'lucide-react';
@@ -6,12 +6,22 @@ import { useTheme } from '../../../contexts/ThemeContext';
 import { Button } from '../../../components/ui/Button';
 import { BottomActionsBar } from '../../../components/layout/BottomActionsBar';
 
+// Declare XLSX globally since it's loaded via CDN in index.html
+declare global {
+  interface Window {
+    XLSX: any;
+  }
+}
+
 const UnidadesPage: React.FC = () => {
   const { currentTheme } = useTheme();
   const [units, setUnits] = useState<MeasurementUnit[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // File Input Ref
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -87,24 +97,66 @@ const UnidadesPage: React.FC = () => {
     setEditingId(null);
   };
 
-  const handleImport = async () => {
-    if(window.confirm("Isso importará a lista padrão completa para o banco de dados. Deseja continuar?")) {
-      setIsLoading(true);
-      try {
-        await settingsService.importDefaultUnits();
-        alert("Importação concluída com sucesso!");
-        fetchUnits();
-      } catch (error) {
-        console.error(error);
-        alert("Erro na importação.");
-      } finally {
-        setIsLoading(false);
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Reset input so allow re-selecting same file
+    e.target.value = '';
+
+    if (file.type === "application/pdf") {
+      alert("A importação de PDF requer um processamento de OCR avançado. Por favor, utilize um arquivo Excel (.xlsx) ou CSV para uma importação precisa e imediata.");
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const wb = window.XLSX.read(arrayBuffer, { type: 'array' });
+      const wsname = wb.SheetNames[0];
+      const ws = wb.Sheets[wsname];
+      const data: any[] = window.XLSX.utils.sheet_to_json(ws);
+
+      if (data.length === 0) {
+        throw new Error("Planilha vazia ou formato inválido");
       }
+
+      let count = 0;
+      // Heuristic to find columns
+      for (const row of data) {
+         // Try to map common headers
+         // Keys might be 'Nome', 'Unidade', 'Abreviação' etc.
+         // Or simple column index if no headers, but sheet_to_json uses first row as header by default.
+         
+         const name = row['Nome'] || row['NOME'] || row['nome'] || row['Unidade'];
+         const abbr = row['Abreviação'] || row['Sigla'] || row['ABREVIACAO'] || row['Abreviação'] || row['Codigo'];
+
+         if (name && abbr) {
+           await settingsService.addUnit({
+             name: String(name).trim(),
+             abbreviation: String(abbr).trim()
+           });
+           count++;
+         }
+      }
+
+      alert(`${count} unidades importadas com sucesso!`);
+      fetchUnits();
+
+    } catch (error) {
+      console.error("Import error:", error);
+      alert("Erro ao importar arquivo. Verifique se é um Excel/CSV válido com colunas 'Nome' e 'Abreviação'.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleExport = () => {
-     // Simple CSV Export
      const headers = ["Nome", "Abreviação"];
      const csvContent = "data:text/csv;charset=utf-8," 
         + headers.join(",") + "\n" 
@@ -132,6 +184,15 @@ const UnidadesPage: React.FC = () => {
 
   return (
     <>
+      {/* Hidden File Input */}
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        onChange={handleFileChange} 
+        style={{ display: 'none' }} 
+        accept=".xlsx, .xls, .csv, .pdf"
+      />
+
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <div className="flex items-center gap-4 w-full sm:w-auto">
           <div className="relative w-full sm:w-72">
@@ -228,7 +289,7 @@ const UnidadesPage: React.FC = () => {
         currentPage={currentPage}
         itemsPerPage={itemsPerPage}
         onPageChange={setCurrentPage}
-        onImport={handleImport}
+        onImport={handleImportClick}
         onExport={handleExport}
         isImporting={isLoading}
       />

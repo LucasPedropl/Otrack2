@@ -4,6 +4,7 @@ import { InventoryItem } from '../../../types';
 import { Plus, Search, Package, Info, LayoutList, LayoutGrid, Edit, Trash2, X } from 'lucide-react';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { Button } from '../../../components/ui/Button';
+import { BottomActionsBar } from '../../../components/layout/BottomActionsBar';
 
 // Options Constants
 const COST_TYPES = [
@@ -40,6 +41,10 @@ const InsumosPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'card'>('list'); // Default to list
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 12;
 
   // Form State
   const initialFormState: Partial<InventoryItem> = {
@@ -171,6 +176,25 @@ const InsumosPage: React.FC = () => {
     }
   };
 
+  const handleExport = () => {
+    const headers = ["Código", "Nome", "Categoria", "Tipo de Custo", "Unidade", "Qtd. Atual", "Valor Unit.", "Estoque Min."];
+    const csvContent = "data:text/csv;charset=utf-8," 
+       + headers.join(",") + "\n" 
+       + items.map(i => `${i.code || ''},${i.name},${i.category},${i.costType},${i.unit},${i.quantity},${i.unitValue},${i.minThreshold}`).join("\n");
+    
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "insumos.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleImport = async () => {
+    alert("Funcionalidade de importação de insumos em massa via Excel será implementada em breve.");
+  };
+
   const formatCurrency = (val?: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
   };
@@ -180,6 +204,12 @@ const InsumosPage: React.FC = () => {
     item.code?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Pagination Logic
+  const currentData = filteredItems.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
   // Dynamic Input Style
   const dynamicInputStyle = { 
     backgroundColor: currentTheme.isDark ? 'rgba(0,0,0,0.2)' : '#ffffff', 
@@ -187,16 +217,12 @@ const InsumosPage: React.FC = () => {
     color: currentTheme.colors.text
   };
 
-  // Select Option Style to ensure readability in dropdowns
   const optionStyle = {
     backgroundColor: currentTheme.colors.card,
     color: currentTheme.colors.text
   };
 
-  // Base class for inputs to handle shape/focus
   const baseInputClass = "w-full px-3 py-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 transition-colors";
-
-  // Dynamic Label Style
   const labelStyle = { color: currentTheme.colors.text };
 
   return (
@@ -217,7 +243,10 @@ const InsumosPage: React.FC = () => {
                 '--tw-ring-color': currentTheme.colors.primary 
               } as any}
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
             />
           </div>
           
@@ -260,142 +289,154 @@ const InsumosPage: React.FC = () => {
         </Button>
       </div>
 
-      {/* Content Area */}
-      {filteredItems.length === 0 ? (
-        <div className="col-span-full py-12 text-center opacity-60">
-            <Package className="h-12 w-12 mx-auto mb-3 opacity-50" style={{ color: currentTheme.colors.text }} />
-            <p style={{ color: currentTheme.colors.text }}>Nenhum insumo encontrado.</p>
-        </div>
-      ) : (
-        <>
-          {viewMode === 'list' ? (
-            // LIST VIEW (Table)
-            <div className="overflow-x-auto rounded-xl border" style={{ borderColor: currentTheme.colors.border, backgroundColor: currentTheme.colors.card }}>
-              <table className="w-full text-left text-sm border-collapse">
-                <thead>
-                  <tr className="" style={{ backgroundColor: currentTheme.isDark ? 'rgba(255,255,255,0.05)' : '#e5e7eb' }}>
-                    <th className="p-4 font-medium" style={{ color: currentTheme.colors.textSecondary }}>Código</th>
-                    <th className="p-4 font-medium" style={{ color: currentTheme.colors.textSecondary }}>Insumo</th>
-                    <th className="p-4 font-medium" style={{ color: currentTheme.colors.textSecondary }}>Unidade</th>
-                    <th className="p-4 font-medium text-right" style={{ color: currentTheme.colors.textSecondary }}>Qtd. atual</th>
-                    <th className="p-4 font-medium text-right" style={{ color: currentTheme.colors.textSecondary }}>Preço médio</th>
-                    <th className="p-4 font-medium text-right" style={{ color: currentTheme.colors.textSecondary }}>Total</th>
-                    <th className="p-4 font-medium text-right" style={{ color: currentTheme.colors.textSecondary }}>Qtd. mínima</th>
-                    <th className="p-4 font-medium text-center" style={{ color: currentTheme.colors.textSecondary }}>Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredItems.map((item, index) => {
-                    const totalValue = (item.quantity || 0) * (item.unitValue || 0);
-                    const isEven = index % 2 === 0;
-                    
-                    // Zebra Striping Logic
-                    const rowBackground = isEven 
-                        ? 'transparent' // Main background
-                        : currentTheme.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)'; // Slightly lighter/darker
+      {/* Content Area - Padding bottom for fixed footer */}
+      <div className="pb-20">
+        {currentData.length === 0 ? (
+          <div className="col-span-full py-12 text-center opacity-60">
+              <Package className="h-12 w-12 mx-auto mb-3 opacity-50" style={{ color: currentTheme.colors.text }} />
+              <p style={{ color: currentTheme.colors.text }}>Nenhum insumo encontrado.</p>
+          </div>
+        ) : (
+          <>
+            {viewMode === 'list' ? (
+              // LIST VIEW (Table)
+              <div className="overflow-x-auto rounded-xl border" style={{ borderColor: currentTheme.colors.border, backgroundColor: currentTheme.colors.card }}>
+                <table className="w-full text-left text-sm border-collapse">
+                  <thead>
+                    <tr className="" style={{ backgroundColor: currentTheme.isDark ? 'rgba(255,255,255,0.05)' : '#e5e7eb' }}>
+                      <th className="p-4 font-medium" style={{ color: currentTheme.colors.textSecondary }}>Código</th>
+                      <th className="p-4 font-medium" style={{ color: currentTheme.colors.textSecondary }}>Insumo</th>
+                      <th className="p-4 font-medium" style={{ color: currentTheme.colors.textSecondary }}>Unidade</th>
+                      <th className="p-4 font-medium text-right" style={{ color: currentTheme.colors.textSecondary }}>Qtd. atual</th>
+                      <th className="p-4 font-medium text-right" style={{ color: currentTheme.colors.textSecondary }}>Preço médio</th>
+                      <th className="p-4 font-medium text-right" style={{ color: currentTheme.colors.textSecondary }}>Total</th>
+                      <th className="p-4 font-medium text-right" style={{ color: currentTheme.colors.textSecondary }}>Qtd. mínima</th>
+                      <th className="p-4 font-medium text-center" style={{ color: currentTheme.colors.textSecondary }}>Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {currentData.map((item, index) => {
+                      const totalValue = (item.quantity || 0) * (item.unitValue || 0);
+                      const isEven = index % 2 === 0;
+                      
+                      // Zebra Striping Logic
+                      const rowBackground = isEven 
+                          ? 'transparent' // Main background
+                          : currentTheme.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)'; // Slightly lighter/darker
 
-                    return (
-                      <tr 
-                        key={item.id} 
-                        className="group hover:opacity-80 transition-opacity"
-                        style={{ backgroundColor: rowBackground }}
-                      >
-                        <td className="p-4 whitespace-nowrap" style={{ color: currentTheme.colors.textSecondary }}>
-                           {item.code || '-'}
-                        </td>
-                        <td className="p-4" style={{ color: currentTheme.colors.text }}>
-                          <div className="font-medium">{item.name}</div>
-                          <div className="text-xs opacity-70">{item.category}</div>
-                        </td>
-                        <td className="p-4 whitespace-nowrap" style={{ color: currentTheme.colors.text }}>{item.unit}</td>
-                        <td className="p-4 text-right whitespace-nowrap font-medium" style={{ color: currentTheme.colors.text }}>
-                          {item.quantity?.toFixed(4)}
-                        </td>
-                        <td className="p-4 text-right whitespace-nowrap" style={{ color: currentTheme.colors.text }}>
-                          {formatCurrency(item.unitValue)}
-                        </td>
-                        <td className="p-4 text-right whitespace-nowrap font-medium" style={{ color: currentTheme.colors.text }}>
-                          {formatCurrency(totalValue)}
-                        </td>
-                        <td className="p-4 text-right whitespace-nowrap" style={{ color: currentTheme.colors.text }}>
-                          {item.stockControl ? item.minThreshold?.toFixed(4) : '-'}
-                        </td>
-                        <td className="p-4">
-                          <div className="flex items-center justify-center space-x-2">
-                             <button 
-                                onClick={() => handleEdit(item)}
-                                className="p-1.5 rounded hover:bg-blue-500/10 text-blue-500 transition-colors"
-                                title="Editar"
-                             >
-                               <Edit size={16} />
-                             </button>
-                             <button 
-                                onClick={() => handleDelete(item.id!)}
-                                className="p-1.5 rounded hover:bg-red-500/10 text-red-500 transition-colors"
-                                title="Excluir"
-                             >
-                               <Trash2 size={16} />
-                             </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            // CARD VIEW
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {filteredItems.map((item) => (
-                <div 
-                  key={item.id} 
-                  className="p-5 rounded-xl border flex flex-col justify-between transition-all hover:shadow-md relative group"
-                  style={{ 
-                    backgroundColor: currentTheme.colors.card, 
-                    borderColor: currentTheme.colors.border 
-                  }}
-                >
-                  {/* Card Actions */}
-                  <div className="absolute top-4 right-4 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                     <button onClick={() => handleEdit(item)} className="p-1.5 rounded bg-blue-500 text-white hover:bg-blue-600">
-                        <Edit size={14} />
-                     </button>
-                     <button onClick={() => handleDelete(item.id!)} className="p-1.5 rounded bg-red-500 text-white hover:bg-red-600">
-                        <Trash2 size={14} />
-                     </button>
-                  </div>
+                      return (
+                        <tr 
+                          key={item.id} 
+                          className="group hover:opacity-80 transition-opacity"
+                          style={{ backgroundColor: rowBackground }}
+                        >
+                          <td className="p-4 whitespace-nowrap" style={{ color: currentTheme.colors.textSecondary }}>
+                             {item.code || '-'}
+                          </td>
+                          <td className="p-4" style={{ color: currentTheme.colors.text }}>
+                            <div className="font-medium">{item.name}</div>
+                            <div className="text-xs opacity-70">{item.category}</div>
+                          </td>
+                          <td className="p-4 whitespace-nowrap" style={{ color: currentTheme.colors.text }}>{item.unit}</td>
+                          <td className="p-4 text-right whitespace-nowrap font-medium" style={{ color: currentTheme.colors.text }}>
+                            {item.quantity?.toFixed(4)}
+                          </td>
+                          <td className="p-4 text-right whitespace-nowrap" style={{ color: currentTheme.colors.text }}>
+                            {formatCurrency(item.unitValue)}
+                          </td>
+                          <td className="p-4 text-right whitespace-nowrap font-medium" style={{ color: currentTheme.colors.text }}>
+                            {formatCurrency(totalValue)}
+                          </td>
+                          <td className="p-4 text-right whitespace-nowrap" style={{ color: currentTheme.colors.text }}>
+                            {item.stockControl ? item.minThreshold?.toFixed(4) : '-'}
+                          </td>
+                          <td className="p-4">
+                            <div className="flex items-center justify-center space-x-2">
+                               <button 
+                                  onClick={() => handleEdit(item)}
+                                  className="p-1.5 rounded hover:bg-blue-500/10 text-blue-500 transition-colors"
+                                  title="Editar"
+                               >
+                                 <Edit size={16} />
+                               </button>
+                               <button 
+                                  onClick={() => handleDelete(item.id!)}
+                                  className="p-1.5 rounded hover:bg-red-500/10 text-red-500 transition-colors"
+                                  title="Excluir"
+                               >
+                                 <Trash2 size={16} />
+                               </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              // CARD VIEW
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {currentData.map((item) => (
+                  <div 
+                    key={item.id} 
+                    className="p-5 rounded-xl border flex flex-col justify-between transition-all hover:shadow-md relative group"
+                    style={{ 
+                      backgroundColor: currentTheme.colors.card, 
+                      borderColor: currentTheme.colors.border 
+                    }}
+                  >
+                    {/* Card Actions */}
+                    <div className="absolute top-4 right-4 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                       <button onClick={() => handleEdit(item)} className="p-1.5 rounded bg-blue-500 text-white hover:bg-blue-600">
+                          <Edit size={14} />
+                       </button>
+                       <button onClick={() => handleDelete(item.id!)} className="p-1.5 rounded bg-red-500 text-white hover:bg-red-600">
+                          <Trash2 size={14} />
+                       </button>
+                    </div>
 
-                  <div className="flex justify-between items-start mb-4">
-                    <div className={`p-2 rounded-lg bg-opacity-10`} style={{ backgroundColor: `${currentTheme.colors.primary}20` }}>
-                      <Package className="h-5 w-5" style={{ color: currentTheme.colors.primary }} />
+                    <div className="flex justify-between items-start mb-4">
+                      <div className={`p-2 rounded-lg bg-opacity-10`} style={{ backgroundColor: `${currentTheme.colors.primary}20` }}>
+                        <Package className="h-5 w-5" style={{ color: currentTheme.colors.primary }} />
+                      </div>
+                      <span className="text-xs px-2 py-1 rounded-full border" style={{ borderColor: currentTheme.colors.border, color: currentTheme.colors.textSecondary }}>
+                        {item.code || 'S/ Cód'}
+                      </span>
                     </div>
-                    <span className="text-xs px-2 py-1 rounded-full border" style={{ borderColor: currentTheme.colors.border, color: currentTheme.colors.textSecondary }}>
-                      {item.code || 'S/ Cód'}
-                    </span>
-                  </div>
-                  
-                  <div>
-                    <h3 className="font-bold text-lg mb-1 pr-6" style={{ color: currentTheme.colors.text }}>{item.name}</h3>
-                    <p className="text-xs mb-3" style={{ color: currentTheme.colors.textSecondary }}>{item.category}</p>
                     
-                    <div className="grid grid-cols-2 gap-2 text-sm mt-4 pt-4 border-t" style={{ borderColor: currentTheme.colors.border }}>
-                       <div>
-                          <p className="text-xs opacity-70 mb-1" style={{ color: currentTheme.colors.textSecondary }}>Unidade</p>
-                          <p style={{ color: currentTheme.colors.text }}>{item.unit}</p>
-                       </div>
-                       <div className="text-right">
-                          <p className="text-xs opacity-70 mb-1" style={{ color: currentTheme.colors.textSecondary }}>Estoque Mín.</p>
-                          <p style={{ color: currentTheme.colors.text }}>{item.stockControl ? item.minThreshold : '-'}</p>
-                       </div>
+                    <div>
+                      <h3 className="font-bold text-lg mb-1 pr-6" style={{ color: currentTheme.colors.text }}>{item.name}</h3>
+                      <p className="text-xs mb-3" style={{ color: currentTheme.colors.textSecondary }}>{item.category}</p>
+                      
+                      <div className="grid grid-cols-2 gap-2 text-sm mt-4 pt-4 border-t" style={{ borderColor: currentTheme.colors.border }}>
+                         <div>
+                            <p className="text-xs opacity-70 mb-1" style={{ color: currentTheme.colors.textSecondary }}>Unidade</p>
+                            <p style={{ color: currentTheme.colors.text }}>{item.unit}</p>
+                         </div>
+                         <div className="text-right">
+                            <p className="text-xs opacity-70 mb-1" style={{ color: currentTheme.colors.textSecondary }}>Estoque Mín.</p>
+                            <p style={{ color: currentTheme.colors.text }}>{item.stockControl ? item.minThreshold : '-'}</p>
+                         </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </>
-      )}
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Fixed Bottom Bar */}
+      <BottomActionsBar 
+        totalItems={filteredItems.length}
+        currentPage={currentPage}
+        itemsPerPage={itemsPerPage}
+        onPageChange={setCurrentPage}
+        onImport={handleImport}
+        onExport={handleExport}
+      />
 
       {/* Create/Edit Modal */}
       {isModalOpen && (
