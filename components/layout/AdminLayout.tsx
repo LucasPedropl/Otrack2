@@ -152,9 +152,9 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
             top: '81px',
             right: '-12px',
             transform: 'translateY(-50%)',
-            backgroundColor: currentTheme.colors.card, 
-            borderColor: currentTheme.colors.border,
-            color: currentTheme.colors.text
+            backgroundColor: currentTheme.colors.sidebar, 
+            borderColor: `${currentTheme.colors.sidebarText}1F`,
+            color: currentTheme.colors.sidebarText
           }}
         >
           {isPrimaryCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
@@ -430,7 +430,7 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
                   className="relative w-5 h-10 flex items-center justify-center rounded-r-md shadow-sm transition-transform duration-200 group-hover:translate-x-0.5"
                   style={{ 
                     backgroundColor: currentTheme.colors.sidebar,
-                    boxShadow: `0 0 0 1px ${currentTheme.colors.border}`,
+                    boxShadow: `0 0 0 1px ${currentTheme.colors.sidebarText}1F`, // Updated to match sidebar border color style
                     color: currentTheme.colors.sidebarText
                   }}
                 >
