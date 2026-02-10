@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { LayoutProps, ConstructionSite } from '../../types';
 import { LayoutDashboard, HardHat, Settings, ChevronLeft, ChevronRight, Building2, Calculator, ShieldCheck, ChevronDown, ChevronUp, Users, FileText, Ruler, Tag, ArrowLeft, FolderDot } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -16,6 +16,29 @@ const SETTINGS_PATHS = [
   '/admin/perfis',
   '/admin/usuarios',
   '/admin/settings'
+];
+
+// Configuration for Settings Menus
+const SETTINGS_MENUS = [
+  {
+    id: 'orcamento',
+    label: 'Orçamento',
+    icon: Calculator,
+    items: [
+      { label: 'Insumos', path: '/admin/insumos', icon: FileText },
+      { label: 'Unid. de Medidas', path: '/admin/unidades', icon: Ruler },
+      { label: 'Categorias', path: '/admin/categorias', icon: Tag },
+    ]
+  },
+  {
+    id: 'acesso',
+    label: 'Acesso ao sistema',
+    icon: ShieldCheck,
+    items: [
+      { label: 'Perfis de acesso', path: '/admin/perfis', icon: ShieldCheck },
+      { label: 'Usuários', path: '/admin/usuarios', icon: Users },
+    ]
+  }
 ];
 
 // Inner component that consumes both SidebarContext and SettingsContext
@@ -38,10 +61,15 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
   // Sites State
   const [sites, setSites] = useState<ConstructionSite[]>([]);
   
-  // Tooltip State
+  // Tooltip/Floating Menu State
   const [hoveredTooltip, setHoveredTooltip] = useState<{ label: string; top: number, left: number } | null>(null);
+  const [hoveredSettingsMenu, setHoveredSettingsMenu] = useState<string | null>(null);
+  const [hoveredMenuPosition, setHoveredMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  
+  // Ref to handle the delay/grace period for the floating menu
+  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Accordion State for Settings Menu
+  // Accordion State for Settings Menu (Expanded Mode)
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({
     orcamento: true,
     acesso: true
@@ -76,9 +104,8 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
     setOpenMenus(prev => ({ ...prev, [menu]: !prev[menu] }));
   };
 
-  const handleTooltip = (e: React.MouseEvent<HTMLElement>, label: string, sidebarType: 'primary' | 'secondary') => {
+  const handleTooltip = (e: React.MouseEvent<HTMLElement>, label: string, sidebarType: 'primary') => {
     if (sidebarType === 'primary' && !isPrimaryCollapsed) return;
-    if (sidebarType === 'secondary' && !isSettingsCollapsed) return;
 
     const rect = e.currentTarget.getBoundingClientRect();
     setHoveredTooltip({
@@ -88,8 +115,33 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
     });
   };
 
+  const handleSettingsMenuHover = (e: React.MouseEvent<HTMLElement>, menuId: string) => {
+    if (!isSettingsCollapsed) return; // Only show floating menu when collapsed
+
+    // Clear any pending close timer when entering the item
+    if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+        hoverTimeoutRef.current = null;
+    }
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    setHoveredSettingsMenu(menuId);
+    setHoveredMenuPosition({
+      top: rect.top,
+      left: rect.right // Position right next to the secondary sidebar
+    });
+  };
+
   const handleTooltipLeave = () => {
     setHoveredTooltip(null);
+  };
+
+  const handleSettingsMenuLeave = () => {
+    // Instead of closing immediately, set a timeout to allow the user to move to the floating menu
+    hoverTimeoutRef.current = setTimeout(() => {
+        setHoveredSettingsMenu(null);
+        setHoveredMenuPosition(null);
+    }, 300); // 300ms grace period
   };
 
   const navItems = [
@@ -281,7 +333,7 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
           
           {/* 2. SECONDARY SIDEBAR (SETTINGS PANEL) */}
           <aside
-            className={`flex-shrink-0 transition-all duration-300 overflow-y-auto flex flex-col z-20 relative
+            className={`flex-shrink-0 transition-all duration-300 overflow-visible flex flex-col z-20 relative
               ${isSettingsOpen ? (isSettingsCollapsed ? 'w-20' : 'w-64') : 'w-0 overflow-hidden'}
             `}
             style={{ 
@@ -307,107 +359,41 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
             <div className="h-4"></div>
 
             <div className="p-4 space-y-6">
-               {/* GROUP 1: ORÇAMENTO */}
-               <div>
-                  <button 
-                    onClick={() => toggleMenu('orcamento')}
-                    onMouseEnter={(e) => handleTooltip(e, 'Orçamento', 'secondary')}
-                    onMouseLeave={handleTooltipLeave}
-                    className={`w-full flex items-center mb-2 p-2 rounded hover:bg-white/5 transition-colors ${isSettingsCollapsed ? 'justify-center' : 'justify-between'}`}
-                  >
-                     <div className={`flex items-center gap-2 font-semibold ${isSettingsCollapsed ? 'justify-center' : ''}`} style={{ color: currentTheme.colors.sidebarText }}>
-                        <Calculator size={18} />
-                        {!isSettingsCollapsed && <span>Orçamento</span>}
-                     </div>
-                     {!isSettingsCollapsed && (openMenus['orcamento'] ? <ChevronUp size={14} style={{ color: currentTheme.colors.sidebarText, opacity: 0.7 }} /> : <ChevronDown size={14} style={{ color: currentTheme.colors.sidebarText, opacity: 0.7 }} />)}
-                  </button>
+               {SETTINGS_MENUS.map(menu => (
+                 <div key={menu.id} className="relative">
+                    <button 
+                      onClick={() => !isSettingsCollapsed && toggleMenu(menu.id)}
+                      onMouseEnter={(e) => handleSettingsMenuHover(e, menu.id)}
+                      onMouseLeave={handleSettingsMenuLeave}
+                      className={`w-full flex items-center mb-2 p-2 rounded hover:bg-white/5 transition-colors ${isSettingsCollapsed ? 'justify-center' : 'justify-between'}`}
+                    >
+                       <div className={`flex items-center gap-2 font-semibold ${isSettingsCollapsed ? 'justify-center' : ''}`} style={{ color: currentTheme.colors.sidebarText }}>
+                          <menu.icon size={18} />
+                          {!isSettingsCollapsed && <span>{menu.label}</span>}
+                       </div>
+                       {!isSettingsCollapsed && (openMenus[menu.id] ? <ChevronUp size={14} style={{ color: currentTheme.colors.sidebarText, opacity: 0.7 }} /> : <ChevronDown size={14} style={{ color: currentTheme.colors.sidebarText, opacity: 0.7 }} />)}
+                    </button>
 
-                  {(openMenus['orcamento'] || isSettingsCollapsed) && (
-                    <div className={`space-y-1 ${isSettingsCollapsed ? '' : 'ml-4 pl-4 border-l border-solid'}`} style={{ borderColor: `${currentTheme.colors.sidebarText}33` }}>
-                       <button 
-                          onClick={() => handleSettingsNavigate('/admin/insumos')} 
-                          onMouseEnter={(e) => handleTooltip(e, 'Insumos', 'secondary')}
-                          onMouseLeave={handleTooltipLeave}
-                          className={`block w-full text-left py-2 px-3 rounded text-sm transition-colors hover:bg-white/5 ${isSettingsCollapsed ? 'flex justify-center px-0' : ''}`} 
-                          style={getSidebarItemStyle(location.pathname === '/admin/insumos')}
-                       >
-                          <div className={`flex items-center gap-2 ${isSettingsCollapsed ? 'justify-center' : ''}`}>
-                            <FileText size={14} />
-                            {!isSettingsCollapsed && 'Insumos'}
-                          </div>
-                       </button>
-                       <button 
-                          onClick={() => handleSettingsNavigate('/admin/unidades')} 
-                          onMouseEnter={(e) => handleTooltip(e, 'Unid. de Medidas', 'secondary')}
-                          onMouseLeave={handleTooltipLeave}
-                          className={`block w-full text-left py-2 px-3 rounded text-sm transition-colors hover:bg-white/5 ${isSettingsCollapsed ? 'flex justify-center px-0' : ''}`} 
-                          style={getSidebarItemStyle(location.pathname === '/admin/unidades')}
-                       >
-                          <div className={`flex items-center gap-2 ${isSettingsCollapsed ? 'justify-center' : ''}`}>
-                            <Ruler size={14} />
-                            {!isSettingsCollapsed && 'Unid. de Medidas'}
-                          </div>
-                       </button>
-                       <button 
-                          onClick={() => handleSettingsNavigate('/admin/categorias')} 
-                          onMouseEnter={(e) => handleTooltip(e, 'Categorias', 'secondary')}
-                          onMouseLeave={handleTooltipLeave}
-                          className={`block w-full text-left py-2 px-3 rounded text-sm transition-colors hover:bg-white/5 ${isSettingsCollapsed ? 'flex justify-center px-0' : ''}`} 
-                          style={getSidebarItemStyle(location.pathname === '/admin/categorias')}
-                       >
-                          <div className={`flex items-center gap-2 ${isSettingsCollapsed ? 'justify-center' : ''}`}>
-                            <Tag size={14} />
-                            {!isSettingsCollapsed && 'Categorias'}
-                          </div>
-                       </button>
-                    </div>
-                  )}
-               </div>
-
-               {/* GROUP 2: ACESSO AO SISTEMA */}
-               <div>
-                  <button 
-                    onClick={() => toggleMenu('acesso')}
-                    onMouseEnter={(e) => handleTooltip(e, 'Acesso ao sistema', 'secondary')}
-                    onMouseLeave={handleTooltipLeave}
-                    className={`w-full flex items-center mb-2 p-2 rounded hover:bg-white/5 transition-colors ${isSettingsCollapsed ? 'justify-center' : 'justify-between'}`}
-                  >
-                     <div className={`flex items-center gap-2 font-semibold ${isSettingsCollapsed ? 'justify-center' : ''}`} style={{ color: currentTheme.colors.sidebarText }}>
-                        <ShieldCheck size={18} />
-                        {!isSettingsCollapsed && <span>Acesso ao sistema</span>}
-                     </div>
-                     {!isSettingsCollapsed && (openMenus['acesso'] ? <ChevronUp size={14} style={{ color: currentTheme.colors.sidebarText, opacity: 0.7 }} /> : <ChevronDown size={14} style={{ color: currentTheme.colors.sidebarText, opacity: 0.7 }} />)}
-                  </button>
-
-                  {(openMenus['acesso'] || isSettingsCollapsed) && (
-                    <div className={`space-y-1 ${isSettingsCollapsed ? '' : 'ml-4 pl-4 border-l border-solid'}`} style={{ borderColor: `${currentTheme.colors.sidebarText}33` }}>
-                       <button 
-                          onClick={() => handleSettingsNavigate('/admin/perfis')} 
-                          onMouseEnter={(e) => handleTooltip(e, 'Perfis de acesso', 'secondary')}
-                          onMouseLeave={handleTooltipLeave}
-                          className={`block w-full text-left py-2 px-3 rounded text-sm transition-colors hover:bg-white/5 ${isSettingsCollapsed ? 'flex justify-center px-0' : ''}`} 
-                          style={getSidebarItemStyle(location.pathname === '/admin/perfis')}
-                       >
-                          <div className={`flex items-center gap-2 ${isSettingsCollapsed ? 'justify-center' : ''}`}>
-                            <ShieldCheck size={14} />
-                            {!isSettingsCollapsed && 'Perfis de acesso'}
-                          </div>
-                       </button>
-                       <button 
-                          onClick={() => handleSettingsNavigate('/admin/usuarios')} 
-                          onMouseEnter={(e) => handleTooltip(e, 'Usuários', 'secondary')}
-                          onMouseLeave={handleTooltipLeave}
-                          className={`block w-full text-left py-2 px-3 rounded text-sm transition-colors hover:bg-white/5 ${isSettingsCollapsed ? 'flex justify-center px-0' : ''}`} 
-                          style={getSidebarItemStyle(location.pathname === '/admin/usuarios')}
-                       >
-                          <div className={`flex items-center gap-2 ${isSettingsCollapsed ? 'justify-center' : ''}`}>
-                            <Users size={14} />
-                            {!isSettingsCollapsed && 'Usuários do sistema'}
-                          </div>
-                       </button>
-                    </div>
-                  )}
-               </div>
+                    {/* Expanded Mode: Accordion Content */}
+                    {!isSettingsCollapsed && openMenus[menu.id] && (
+                      <div className="ml-4 pl-4 border-l border-solid space-y-1" style={{ borderColor: `${currentTheme.colors.sidebarText}33` }}>
+                         {menu.items.map(subItem => (
+                           <button 
+                              key={subItem.path}
+                              onClick={() => handleSettingsNavigate(subItem.path)} 
+                              className="block w-full text-left py-2 px-3 rounded text-sm transition-colors hover:bg-white/5" 
+                              style={getSidebarItemStyle(location.pathname === subItem.path)}
+                           >
+                              <div className="flex items-center gap-2">
+                                <subItem.icon size={14} />
+                                {subItem.label}
+                              </div>
+                           </button>
+                         ))}
+                      </div>
+                    )}
+                 </div>
+               ))}
             </div>
           </aside>
 
@@ -471,6 +457,7 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
         </div>
       </div>
 
+      {/* Floating Tooltips for Primary Sidebar */}
       {hoveredTooltip && (
            <div 
              className="fixed px-3 py-1.5 rounded-md text-xs font-medium z-[100] shadow-lg border border-solid animate-in fade-in zoom-in-95 duration-100 whitespace-nowrap pointer-events-none"
@@ -485,6 +472,62 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
            >
              {hoveredTooltip.label}
            </div>
+      )}
+
+      {/* Floating Menu for Secondary Sidebar (Collapsed) */}
+      {isSettingsCollapsed && hoveredSettingsMenu && hoveredMenuPosition && (
+        <div 
+          className="fixed z-[100] rounded-lg shadow-xl overflow-hidden border animate-in fade-in slide-in-from-left-2 duration-150"
+          style={{ 
+            top: hoveredMenuPosition.top,
+            left: hoveredMenuPosition.left + 5, // Offset slightly
+            minWidth: '200px',
+            backgroundColor: currentTheme.colors.sidebar, // Match sidebar theme
+            borderColor: `${currentTheme.colors.sidebarText}33`,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.2)'
+          }}
+          onMouseEnter={() => {
+             // Keep it open when moving from icon to menu (clear timeout)
+             if (hoverTimeoutRef.current) {
+                clearTimeout(hoverTimeoutRef.current);
+                hoverTimeoutRef.current = null;
+             }
+             setHoveredSettingsMenu(hoveredSettingsMenu);
+          }}
+          onMouseLeave={handleSettingsMenuLeave}
+        >
+           {/* Header */}
+           <div 
+             className="px-4 py-3 font-semibold border-b flex items-center gap-2" 
+             style={{ 
+                color: currentTheme.colors.sidebarText,
+                borderColor: `${currentTheme.colors.sidebarText}1F`
+             }}
+           >
+              {SETTINGS_MENUS.find(m => m.id === hoveredSettingsMenu)?.label}
+           </div>
+           
+           {/* Items */}
+           <div className="py-2">
+              {SETTINGS_MENUS.find(m => m.id === hoveredSettingsMenu)?.items.map(subItem => (
+                 <button
+                    key={subItem.path}
+                    onClick={() => {
+                        handleSettingsNavigate(subItem.path);
+                        handleSettingsMenuLeave();
+                    }}
+                    className="w-full text-left px-4 py-2 flex items-center gap-3 transition-colors hover:bg-white/10"
+                    style={{ 
+                       color: location.pathname === subItem.path ? currentTheme.colors.primary : currentTheme.colors.sidebarText,
+                       fontWeight: location.pathname === subItem.path ? 600 : 400
+                    }}
+                 >
+                    <subItem.icon size={16} />
+                    <span className="text-sm">{subItem.label}</span>
+                 </button>
+              ))}
+           </div>
+        </div>
       )}
     </div>
   );

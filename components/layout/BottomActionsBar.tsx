@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { Button } from '../ui/Button';
-import { Download, Upload, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Download, Upload, ChevronLeft, ChevronRight, Trash2, X } from 'lucide-react';
 
 interface BottomActionsBarProps {
   totalItems: number;
@@ -12,6 +12,12 @@ interface BottomActionsBarProps {
   onExport: () => void;
   isExporting?: boolean;
   isImporting?: boolean;
+  
+  // Selection Props
+  selectedCount?: number;
+  onDeleteSelected?: () => void;
+  onCancelSelection?: () => void;
+  isDeleting?: boolean;
 }
 
 export const BottomActionsBar: React.FC<BottomActionsBarProps> = ({
@@ -22,7 +28,11 @@ export const BottomActionsBar: React.FC<BottomActionsBarProps> = ({
   onImport,
   onExport,
   isExporting = false,
-  isImporting = false
+  isImporting = false,
+  selectedCount = 0,
+  onDeleteSelected,
+  onCancelSelection,
+  isDeleting = false
 }) => {
   const { currentTheme } = useTheme();
 
@@ -30,9 +40,60 @@ export const BottomActionsBar: React.FC<BottomActionsBarProps> = ({
   const startItem = totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
   const endItem = Math.min(currentPage * itemsPerPage, totalItems);
 
+  // Bulk Action Mode
+  if (selectedCount > 0 && onDeleteSelected && onCancelSelection) {
+    return (
+      <div 
+        className="absolute bottom-0 left-0 right-0 z-50 transition-all duration-300 transform translate-y-0"
+        style={{ 
+          backgroundColor: currentTheme.isDark ? '#3f1818' : '#fee2e2', // Light Red / Dark Red bg
+          borderTop: `1px solid ${currentTheme.isDark ? '#7f1d1d' : '#fca5a5'}`
+        }}
+      >
+        <div className="flex flex-col sm:flex-row items-center justify-between px-6 py-4 gap-4">
+           <div className="flex items-center gap-4">
+              <div 
+                className="flex items-center justify-center h-8 w-8 rounded-full font-bold transition-colors"
+                style={{ 
+                  backgroundColor: currentTheme.isDark ? '#ef4444' : '#ef4444',
+                  color: '#ffffff'
+                }}
+              >
+                {selectedCount}
+              </div>
+              <span className="font-medium" style={{ color: currentTheme.isDark ? '#fecaca' : '#991b1b' }}>
+                {selectedCount === 1 ? 'Item selecionado' : 'Itens selecionados'}
+              </span>
+           </div>
+
+           <div className="flex items-center gap-3">
+              <Button 
+                variant="ghost" 
+                onClick={onCancelSelection}
+                className="hover:bg-red-500/10"
+                style={{ color: currentTheme.isDark ? '#fecaca' : '#991b1b' }}
+              >
+                Cancelar
+              </Button>
+              <Button 
+                variant="danger" 
+                onClick={onDeleteSelected}
+                isLoading={isDeleting}
+                className="h-9 px-6"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Excluir Selecionados
+              </Button>
+           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Standard Pagination Mode
   return (
     <div 
-      className="absolute bottom-0 left-0 right-0 z-50 transition-colors duration-300"
+      className="absolute bottom-0 left-0 right-0 z-40 transition-colors duration-300"
       style={{ 
         backgroundColor: currentTheme.colors.sidebar,
       }}

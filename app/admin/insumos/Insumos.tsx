@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { inventoryService } from '../../../services/inventoryService';
-import { InventoryItem } from '../../../types';
-import { Plus, Search, Package, Info, LayoutList, LayoutGrid, Edit, Trash2, X } from 'lucide-react';
+import { settingsService } from '../../../services/settingsService';
+import { InventoryItem, MeasurementUnit, ItemCategory } from '../../../types';
+import { Plus, Search, Package, Info, LayoutList, LayoutGrid, Edit, Trash2, X, AlertTriangle, ChevronDown } from 'lucide-react';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { Button } from '../../../components/ui/Button';
 import { BottomActionsBar } from '../../../components/layout/BottomActionsBar';
@@ -16,31 +17,35 @@ const COST_TYPES = [
   "Serviço"
 ];
 
-const MEASUREMENT_UNITS = [
-  "Unidade (un)",
-  "Quilograma (kg)",
-  "Grama (g)",
-  "Metro (m)",
-  "Metro Quadrado (m²)",
-  "Metro Cúbico (m³)",
-  "Litro (l)",
-  "Caixa (cx)",
-  "Par (par)",
-  "Tonelada (ton)",
-  "Saca (sc)",
-  "Hora (h)",
-  "Dia (d)",
-  "Verba (vb)"
-];
-
 const InsumosPage: React.FC = () => {
   const { currentTheme } = useTheme();
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [viewMode, setViewMode] = useState<'list' | 'card'>('list'); // Default to list
+  const [viewMode, setViewMode] = useState<'list' | 'card'>('list');
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  // Selection State
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isDeletingMultiple, setIsDeletingMultiple] = useState(false);
+
+  // Dynamic Options State
+  const [availableUnits, setAvailableUnits] = useState<MeasurementUnit[]>([]);
+  const [availableCategories, setAvailableCategories] = useState<ItemCategory[]>([]);
+
+  // Combobox State
+  const [showCategoryOptions, setShowCategoryOptions] = useState(false);
+  const [showCostTypeOptions, setShowCostTypeOptions] = useState(false);
+  const [showUnitOptions, setShowUnitOptions] = useState(false);
+
+  // Refs for Click Outside Logic
+  const categoryRef = useRef<HTMLDivElement>(null);
+  const costTypeRef = useRef<HTMLDivElement>(null);
+  const unitRef = useRef<HTMLDivElement>(null);
+
+  // Delete Modal State
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -61,17 +66,43 @@ const InsumosPage: React.FC = () => {
 
   const [formData, setFormData] = useState<Partial<InventoryItem>>(initialFormState);
 
-  const fetchItems = async () => {
+  const fetchData = async () => {
     try {
-      const data = await inventoryService.getAll();
-      setItems(data);
+      const [inventoryData, unitsData, categoriesData] = await Promise.all([
+        inventoryService.getAll(),
+        settingsService.getUnits(),
+        settingsService.getCategories()
+      ]);
+      setItems(inventoryData);
+      setAvailableUnits(unitsData);
+      setAvailableCategories(categoriesData);
     } catch (error) {
-      console.error("Failed to fetch inventory", error);
+      console.error("Failed to fetch data", error);
     }
   };
 
   useEffect(() => {
-    fetchItems();
+    fetchData();
+  }, []);
+
+  // Click Outside Listener to close dropdowns correctly
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (categoryRef.current && !categoryRef.current.contains(event.target as Node)) {
+        setShowCategoryOptions(false);
+      }
+      if (costTypeRef.current && !costTypeRef.current.contains(event.target as Node)) {
+        setShowCostTypeOptions(false);
+      }
+      if (unitRef.current && !unitRef.current.contains(event.target as Node)) {
+        setShowUnitOptions(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -96,6 +127,70 @@ const InsumosPage: React.FC = () => {
     setFormData(prev => ({ ...prev, stockControl: value }));
   };
 
+  // --- Quick Add Handlers ---
+
+  const handleQuickAddCategory = async () => {
+    const newCategoryName = formData.category?.trim();
+    if (!newCategoryName) return;
+
+    // Check if exists
+    const exists = availableCategories.find(c => c.category.toLowerCase() === newCategoryName.toLowerCase());
+    if (exists) {
+        setFormData(prev => ({ ...prev, category: exists.category })); // Normalize case
+        setShowCategoryOptions(false);
+        return;
+    }
+
+    if (window.confirm(`Deseja cadastrar a nova categoria "${newCategoryName}"?`)) {
+        try {
+            await settingsService.addCategory({
+                category: newCategoryName,
+                subcategory: '',
+                type: 'Produto', // Default
+                registrationType: 'Próprio'
+            });
+            // Refresh list
+            const updatedCats = await settingsService.getCategories();
+            setAvailableCategories(updatedCats);
+            setShowCategoryOptions(false);
+        } catch (error) {
+            console.error(error);
+            alert("Erro ao cadastrar categoria rápida.");
+        }
+    }
+  };
+
+  const handleQuickAddUnit = async () => {
+    const newUnitName = formData.unit?.trim();
+    if (!newUnitName) return;
+
+    // Check if exists
+    const exists = availableUnits.find(u => u.name.toLowerCase() === newUnitName.toLowerCase() || u.abbreviation.toLowerCase() === newUnitName.toLowerCase());
+    if (exists) {
+        setFormData(prev => ({ ...prev, unit: exists.abbreviation })); // Normalize
+        setShowUnitOptions(false);
+        return;
+    }
+
+    const abbr = prompt(`Informe a abreviação para "${newUnitName}" (ex: UN, kg, m):`);
+    if (abbr) {
+        try {
+            await settingsService.addUnit({
+                name: newUnitName,
+                abbreviation: abbr.toUpperCase()
+            });
+            // Refresh list
+            const updatedUnits = await settingsService.getUnits();
+            setAvailableUnits(updatedUnits);
+            setFormData(prev => ({ ...prev, unit: abbr.toUpperCase() })); 
+            setShowUnitOptions(false);
+        } catch (error) {
+            console.error(error);
+            alert("Erro ao cadastrar unidade rápida.");
+        }
+    }
+  };
+
   const handleEdit = (item: InventoryItem) => {
     setFormData({
       code: item.code || '',
@@ -112,15 +207,26 @@ const InsumosPage: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm('Tem certeza que deseja excluir este insumo?')) {
-      try {
-        await inventoryService.delete(id);
-        fetchItems();
-      } catch (error) {
-        console.error("Error deleting item", error);
-        alert("Erro ao excluir item.");
-      }
+  const handleDeleteClick = (id: string) => {
+    setDeleteId(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteId) return;
+    setIsLoading(true);
+    try {
+      await inventoryService.delete(deleteId);
+      await fetchData(); // Refresh list
+      setDeleteId(null);
+      // Remove from selection if present
+      const newSelection = new Set(selectedIds);
+      newSelection.delete(deleteId);
+      setSelectedIds(newSelection);
+    } catch (error) {
+      console.error("Error deleting item", error);
+      alert("Erro ao excluir item.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -128,6 +234,14 @@ const InsumosPage: React.FC = () => {
     setIsModalOpen(false);
     setFormData(initialFormState);
     setEditingId(null);
+    setShowCategoryOptions(false);
+    setShowCostTypeOptions(false);
+    setShowUnitOptions(false);
+  };
+
+  const generateCode = () => {
+    // Generates a simple random 6-digit code with prefix
+    return `INS-${Math.floor(100000 + Math.random() * 900000)}`;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -142,8 +256,11 @@ const InsumosPage: React.FC = () => {
         return;
       }
 
+      // Auto-generate code if creating new
+      const codeToUse = editingId ? formData.code : generateCode();
+
       const itemData = {
-        code: formData.code,
+        code: codeToUse,
         name: formData.name!,
         category: formData.category!,
         costType: formData.costType,
@@ -161,18 +278,12 @@ const InsumosPage: React.FC = () => {
       }
 
       handleCloseModal();
-      fetchItems();
+      fetchData();
     } catch (error) {
       console.error(error);
       alert("Erro ao salvar insumo");
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget) {
-      handleCloseModal();
     }
   };
 
@@ -195,6 +306,46 @@ const InsumosPage: React.FC = () => {
     alert("Funcionalidade de importação de insumos em massa via Excel será implementada em breve.");
   };
 
+  // --- Multi-Selection Handlers ---
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      const allIdsOnPage = currentData.map(item => item.id!);
+      const newSelection = new Set(selectedIds);
+      allIdsOnPage.forEach(id => newSelection.add(id));
+      setSelectedIds(newSelection);
+    } else {
+      const newSelection = new Set(selectedIds);
+      currentData.forEach(item => newSelection.delete(item.id!));
+      setSelectedIds(newSelection);
+    }
+  };
+
+  const handleSelectOne = (id: string) => {
+    const newSelection = new Set(selectedIds);
+    if (newSelection.has(id)) {
+      newSelection.delete(id);
+    } else {
+      newSelection.add(id);
+    }
+    setSelectedIds(newSelection);
+  };
+
+  const handleBulkDelete = async () => {
+    if (!window.confirm(`Tem certeza que deseja excluir ${selectedIds.size} itens?`)) return;
+    
+    setIsDeletingMultiple(true);
+    try {
+      await Promise.all(Array.from(selectedIds).map(id => inventoryService.delete(id)));
+      setSelectedIds(new Set());
+      fetchData();
+    } catch (error) {
+      console.error(error);
+      alert("Erro ao excluir alguns itens.");
+    } finally {
+      setIsDeletingMultiple(false);
+    }
+  };
+
   const formatCurrency = (val?: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
   };
@@ -210,6 +361,9 @@ const InsumosPage: React.FC = () => {
     currentPage * itemsPerPage
   );
 
+  // Check if all on current page are selected
+  const isAllSelected = currentData.length > 0 && currentData.every(item => selectedIds.has(item.id!));
+
   // Dynamic Input Style
   const dynamicInputStyle = { 
     backgroundColor: currentTheme.isDark ? 'rgba(0,0,0,0.2)' : '#ffffff', 
@@ -217,13 +371,28 @@ const InsumosPage: React.FC = () => {
     color: currentTheme.colors.text
   };
 
-  const optionStyle = {
-    backgroundColor: currentTheme.colors.card,
-    color: currentTheme.colors.text
-  };
-
   const baseInputClass = "w-full px-3 py-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 transition-colors";
   const labelStyle = { color: currentTheme.colors.text };
+
+  // Helper for filtered dropdown options
+  const filteredCategories = availableCategories.filter(c => 
+    c.category.toLowerCase().includes((formData.category || '').toLowerCase())
+  );
+  
+  const filteredUnits = availableUnits.filter(u => 
+    u.name.toLowerCase().includes((formData.unit || '').toLowerCase()) ||
+    u.abbreviation.toLowerCase().includes((formData.unit || '').toLowerCase())
+  );
+
+  const filteredCostTypes = COST_TYPES.filter(t => 
+    t.toLowerCase().includes((formData.costType || '').toLowerCase())
+  );
+
+  // Determine if we need to show quick add for Category
+  const showQuickAddCategory = formData.category && !filteredCategories.some(c => c.category.toLowerCase() === formData.category?.toLowerCase());
+
+  // Determine if we need to show quick add for Unit
+  const showQuickAddUnit = formData.unit && !filteredUnits.some(u => u.name.toLowerCase() === formData.unit?.toLowerCase() || u.abbreviation.toLowerCase() === formData.unit?.toLowerCase());
 
   return (
     <>
@@ -304,6 +473,14 @@ const InsumosPage: React.FC = () => {
                 <table className="w-full text-left text-sm border-collapse">
                   <thead>
                     <tr className="" style={{ backgroundColor: currentTheme.isDark ? 'rgba(255,255,255,0.05)' : '#e5e7eb' }}>
+                      <th className="p-4 w-10 text-center">
+                        <input 
+                           type="checkbox" 
+                           checked={isAllSelected}
+                           onChange={handleSelectAll}
+                           className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                        />
+                      </th>
                       <th className="p-4 font-medium" style={{ color: currentTheme.colors.textSecondary }}>Código</th>
                       <th className="p-4 font-medium" style={{ color: currentTheme.colors.textSecondary }}>Insumo</th>
                       <th className="p-4 font-medium" style={{ color: currentTheme.colors.textSecondary }}>Unidade</th>
@@ -318,18 +495,26 @@ const InsumosPage: React.FC = () => {
                     {currentData.map((item, index) => {
                       const totalValue = (item.quantity || 0) * (item.unitValue || 0);
                       const isEven = index % 2 === 0;
+                      const isSelected = selectedIds.has(item.id!);
                       
-                      // Zebra Striping Logic
-                      const rowBackground = isEven 
-                          ? 'transparent' // Main background
-                          : currentTheme.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)'; // Slightly lighter/darker
+                      const rowBackground = isSelected 
+                          ? (currentTheme.isDark ? 'rgba(59, 130, 246, 0.2)' : '#eff6ff')
+                          : isEven ? 'transparent' : (currentTheme.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)');
 
                       return (
                         <tr 
                           key={item.id} 
-                          className="group hover:opacity-80 transition-opacity"
+                          className="group hover:opacity-80 transition-colors"
                           style={{ backgroundColor: rowBackground }}
                         >
+                          <td className="p-4 text-center">
+                             <input 
+                                type="checkbox" 
+                                checked={isSelected}
+                                onChange={() => handleSelectOne(item.id!)}
+                                className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                             />
+                          </td>
                           <td className="p-4 whitespace-nowrap" style={{ color: currentTheme.colors.textSecondary }}>
                              {item.code || '-'}
                           </td>
@@ -360,7 +545,7 @@ const InsumosPage: React.FC = () => {
                                  <Edit size={16} />
                                </button>
                                <button 
-                                  onClick={() => handleDelete(item.id!)}
+                                  onClick={() => handleDeleteClick(item.id!)}
                                   className="p-1.5 rounded hover:bg-red-500/10 text-red-500 transition-colors"
                                   title="Excluir"
                                >
@@ -386,12 +571,14 @@ const InsumosPage: React.FC = () => {
                       borderColor: currentTheme.colors.border 
                     }}
                   >
+                    {/* Selection Overlay for Cards (optional, keeping simple for now) */}
+                    
                     {/* Card Actions */}
                     <div className="absolute top-4 right-4 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                        <button onClick={() => handleEdit(item)} className="p-1.5 rounded bg-blue-500 text-white hover:bg-blue-600">
                           <Edit size={14} />
                        </button>
-                       <button onClick={() => handleDelete(item.id!)} className="p-1.5 rounded bg-red-500 text-white hover:bg-red-600">
+                       <button onClick={() => handleDeleteClick(item.id!)} className="p-1.5 rounded bg-red-500 text-white hover:bg-red-600">
                           <Trash2 size={14} />
                        </button>
                     </div>
@@ -436,13 +623,19 @@ const InsumosPage: React.FC = () => {
         onPageChange={setCurrentPage}
         onImport={handleImport}
         onExport={handleExport}
+        
+        // Bulk props
+        selectedCount={selectedIds.size}
+        onDeleteSelected={handleBulkDelete}
+        onCancelSelection={() => setSelectedIds(new Set())}
+        isDeleting={isDeletingMultiple}
       />
 
       {/* Create/Edit Modal */}
       {isModalOpen && (
         <div 
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
-          onClick={handleBackdropClick}
+          onClick={() => setIsModalOpen(false)}
         >
           <div 
             className="w-full max-w-2xl rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto border relative"
@@ -472,24 +665,7 @@ const InsumosPage: React.FC = () => {
             
             <form onSubmit={handleSubmit} className="p-6 space-y-6">
               
-              {/* Row 1 */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                 <div className="md:col-span-1">
-                   <div className="w-full">
-                      <label className="block text-sm font-medium mb-1" style={labelStyle}>Código</label>
-                      <input 
-                        name="code"
-                        value={formData.code}
-                        onChange={handleInputChange}
-                        placeholder="0001"
-                        className={baseInputClass}
-                        style={dynamicInputStyle}
-                      />
-                   </div>
-                 </div>
-              </div>
-
-              {/* Row 2 */}
+              {/* Row 2 - Name only since Code is auto */}
               <div className="grid grid-cols-1">
                  <div className="w-full">
                     <label className="block text-sm font-medium mb-1" style={labelStyle}>Nome *</label>
@@ -498,62 +674,214 @@ const InsumosPage: React.FC = () => {
                       value={formData.name}
                       onChange={handleInputChange}
                       required
+                      placeholder="Ex: Cimento CP-II"
                       className={baseInputClass}
                       style={dynamicInputStyle}
                     />
                  </div>
               </div>
 
-              {/* Row 3 */}
+              {/* Row 3 - Category with Custom Input */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                 <div className="w-full">
+                 <div className="w-full relative" ref={categoryRef}>
                     <label className="block text-sm font-medium mb-1" style={labelStyle}>Categoria *</label>
-                    <input 
-                      name="category"
-                      value={formData.category}
-                      onChange={handleInputChange}
-                      placeholder="Selecione..."
-                      required
-                      className={baseInputClass}
-                      style={dynamicInputStyle}
-                    />
+                    <div className="relative">
+                        <input
+                            name="category"
+                            value={formData.category}
+                            onChange={(e) => {
+                                handleInputChange(e);
+                                setShowCategoryOptions(true);
+                            }}
+                            onFocus={() => setShowCategoryOptions(true)}
+                            placeholder="Selecione ou digite..."
+                            className={baseInputClass}
+                            style={dynamicInputStyle}
+                            autoComplete="off"
+                            required
+                        />
+                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 opacity-50 pointer-events-none" style={{ color: currentTheme.colors.text }} />
+                    </div>
+                    
+                    {showCategoryOptions && (
+                        <ul 
+                            className="absolute z-[100] w-full mt-1 max-h-48 overflow-auto rounded-lg border shadow-lg"
+                            style={{ 
+                                backgroundColor: currentTheme.colors.card, 
+                                borderColor: currentTheme.colors.border 
+                            }}
+                        >
+                            {/* Quick Add Option - Always show if typed text is not empty and exact match not found */}
+                            {showQuickAddCategory && (
+                                <li 
+                                    onMouseDown={handleQuickAddCategory}
+                                    className="px-3 py-2 cursor-pointer border-b font-medium transition-colors hover:bg-opacity-10"
+                                    style={{ 
+                                        color: currentTheme.colors.primary, 
+                                        borderColor: currentTheme.colors.border,
+                                        backgroundColor: `${currentTheme.colors.primary}10`
+                                    }}
+                                >
+                                    + Cadastrar "{formData.category}"
+                                </li>
+                            )}
+                            
+                            {/* Existing Options */}
+                            {filteredCategories.map(cat => (
+                                <li 
+                                    key={cat.id} 
+                                    onMouseDown={() => {
+                                        setFormData(prev => ({ ...prev, category: cat.category }));
+                                        setShowCategoryOptions(false);
+                                    }}
+                                    className="px-3 py-2 cursor-pointer transition-colors"
+                                    // Custom Hover Style
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.backgroundColor = `${currentTheme.colors.primary}15`;
+                                        e.currentTarget.style.color = currentTheme.colors.primary;
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.backgroundColor = 'transparent';
+                                        e.currentTarget.style.color = currentTheme.colors.text;
+                                    }}
+                                    style={{ color: currentTheme.colors.text }}
+                                >
+                                    {cat.category} {cat.subcategory ? `- ${cat.subcategory}` : ''}
+                                </li>
+                            ))}
+                            
+                            {filteredCategories.length === 0 && !showQuickAddCategory && (
+                                <li className="px-3 py-2 text-sm opacity-50" style={{ color: currentTheme.colors.text }}>Digite para buscar...</li>
+                            )}
+                        </ul>
+                    )}
                  </div>
 
-                 <div className="w-full">
+                 <div className="w-full relative" ref={costTypeRef}>
                     <label className="block text-sm font-medium mb-1" style={labelStyle}>Tipo custo *</label>
-                    <select
-                      name="costType"
-                      value={formData.costType}
-                      onChange={handleInputChange}
-                      required
-                      className={baseInputClass}
-                      style={dynamicInputStyle}
-                    >
-                      <option value="" disabled style={optionStyle}>Selecione...</option>
-                      {COST_TYPES.map(type => (
-                        <option key={type} value={type} style={optionStyle}>{type}</option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                        <input
+                            name="costType"
+                            value={formData.costType}
+                            onChange={(e) => {
+                                handleInputChange(e);
+                                setShowCostTypeOptions(true);
+                            }}
+                            onFocus={() => setShowCostTypeOptions(true)}
+                            placeholder="Selecione..."
+                            className={baseInputClass}
+                            style={dynamicInputStyle}
+                            autoComplete="off"
+                            required
+                        />
+                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 opacity-50 pointer-events-none" style={{ color: currentTheme.colors.text }} />
+                    </div>
+
+                    {showCostTypeOptions && (
+                        <ul 
+                            className="absolute z-[100] w-full mt-1 max-h-48 overflow-auto rounded-lg border shadow-lg"
+                            style={{ 
+                                backgroundColor: currentTheme.colors.card, 
+                                borderColor: currentTheme.colors.border 
+                            }}
+                        >
+                            {filteredCostTypes.map(type => (
+                                <li 
+                                    key={type} 
+                                    onMouseDown={() => {
+                                        setFormData(prev => ({ ...prev, costType: type }));
+                                        setShowCostTypeOptions(false);
+                                    }}
+                                    className="px-3 py-2 cursor-pointer transition-colors"
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.backgroundColor = `${currentTheme.colors.primary}15`;
+                                        e.currentTarget.style.color = currentTheme.colors.primary;
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.backgroundColor = 'transparent';
+                                        e.currentTarget.style.color = currentTheme.colors.text;
+                                    }}
+                                    style={{ color: currentTheme.colors.text }}
+                                >
+                                    {type}
+                                </li>
+                            ))}
+                             {filteredCostTypes.length === 0 && (
+                                <li className="px-3 py-2 text-sm opacity-50" style={{ color: currentTheme.colors.text }}>Nenhum encontrado...</li>
+                            )}
+                        </ul>
+                    )}
                  </div>
               </div>
 
-              {/* Row 4 */}
+              {/* Row 4 - Unit with Custom Input */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                 <div className="w-full">
+                 <div className="w-full relative" ref={unitRef}>
                     <label className="block text-sm font-medium mb-1" style={labelStyle}>Und. orçamento *</label>
-                    <select
-                      name="unit"
-                      value={formData.unit}
-                      onChange={handleInputChange}
-                      required
-                      className={baseInputClass}
-                      style={dynamicInputStyle}
-                    >
-                      <option value="" disabled style={optionStyle}>Selecione...</option>
-                      {MEASUREMENT_UNITS.map(unit => (
-                        <option key={unit} value={unit} style={optionStyle}>{unit}</option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                        <input
+                            name="unit"
+                            value={formData.unit}
+                            onChange={(e) => {
+                                handleInputChange(e);
+                                setShowUnitOptions(true);
+                            }}
+                            onFocus={() => setShowUnitOptions(true)}
+                            placeholder="Selecione ou digite..."
+                            className={baseInputClass}
+                            style={dynamicInputStyle}
+                            autoComplete="off"
+                            required
+                        />
+                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 opacity-50 pointer-events-none" style={{ color: currentTheme.colors.text }} />
+                    </div>
+
+                    {showUnitOptions && (
+                        <ul 
+                            className="absolute z-[100] w-full mt-1 max-h-48 overflow-auto rounded-lg border shadow-lg"
+                            style={{ 
+                                backgroundColor: currentTheme.colors.card, 
+                                borderColor: currentTheme.colors.border 
+                            }}
+                        >
+                            {/* Quick Add Option */}
+                            {showQuickAddUnit && (
+                                <li 
+                                    onMouseDown={handleQuickAddUnit}
+                                    className="px-3 py-2 cursor-pointer border-b font-medium transition-colors hover:bg-opacity-10"
+                                    style={{ 
+                                        color: currentTheme.colors.primary, 
+                                        borderColor: currentTheme.colors.border,
+                                        backgroundColor: `${currentTheme.colors.primary}10`
+                                    }}
+                                >
+                                    + Cadastrar "{formData.unit}"
+                                </li>
+                            )}
+
+                            {filteredUnits.map(unit => (
+                                <li 
+                                    key={unit.id} 
+                                    onMouseDown={() => {
+                                        setFormData(prev => ({ ...prev, unit: unit.abbreviation }));
+                                        setShowUnitOptions(false);
+                                    }}
+                                    className="px-3 py-2 cursor-pointer transition-colors"
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.backgroundColor = `${currentTheme.colors.primary}15`;
+                                        e.currentTarget.style.color = currentTheme.colors.primary;
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.backgroundColor = 'transparent';
+                                        e.currentTarget.style.color = currentTheme.colors.text;
+                                    }}
+                                    style={{ color: currentTheme.colors.text }}
+                                >
+                                    {unit.name} ({unit.abbreviation})
+                                </li>
+                            ))}
+                        </ul>
+                    )}
                  </div>
 
                  <div className="w-full">
@@ -645,6 +973,50 @@ const InsumosPage: React.FC = () => {
               </div>
 
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteId && (
+        <div 
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          onClick={() => setDeleteId(null)}
+        >
+          <div 
+            className="w-full max-w-sm rounded-xl shadow-xl border p-6 text-center animate-in zoom-in-95 duration-200"
+            style={{ 
+              backgroundColor: currentTheme.colors.card, 
+              borderColor: currentTheme.colors.border 
+            }} 
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-4">
+              <AlertTriangle className="h-6 w-6 text-red-600" />
+            </div>
+            
+            <h3 className="text-lg font-bold mb-2" style={{ color: currentTheme.colors.text }}>Confirmar Exclusão</h3>
+            <p className="text-sm mb-6 opacity-80" style={{ color: currentTheme.colors.textSecondary }}>
+              Tem certeza que deseja excluir este insumo? Esta ação não pode ser desfeita.
+            </p>
+
+            <div className="flex gap-3 justify-center">
+              <Button 
+                variant="secondary" 
+                onClick={() => setDeleteId(null)}
+                className="w-full"
+              >
+                Cancelar
+              </Button>
+              <Button 
+                variant="danger" 
+                onClick={confirmDelete}
+                isLoading={isLoading}
+                className="w-full"
+              >
+                Excluir
+              </Button>
+            </div>
           </div>
         </div>
       )}

@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { settingsService } from '../../../services/settingsService';
 import { ItemCategory } from '../../../types';
-import { Plus, Search, Tag, Trash2, Edit } from 'lucide-react';
+import { Plus, Search, Tag, Trash2, Edit, AlertTriangle } from 'lucide-react';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { Button } from '../../../components/ui/Button';
 import { BottomActionsBar } from '../../../components/layout/BottomActionsBar';
@@ -13,6 +13,13 @@ const CategoriasPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   
+  // Selection State
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isDeletingMultiple, setIsDeletingMultiple] = useState(false);
+
+  // Deletion State
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+
   // File Input Ref
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -57,19 +64,29 @@ const CategoriasPage: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDeleteClick = (id: string) => {
     if (id.startsWith('default-')) {
        alert("Não é possível excluir itens padrão do sistema (mock). Importe os dados para editar.");
        return;
     }
-    if (window.confirm('Tem certeza que deseja excluir esta categoria?')) {
-      try {
-        await settingsService.deleteCategory(id);
+    setDeleteId(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteId) return;
+    setIsLoading(true);
+    try {
+        await settingsService.deleteCategory(deleteId);
+        const newSelection = new Set(selectedIds);
+        newSelection.delete(deleteId);
+        setSelectedIds(newSelection);
         fetchCategories();
-      } catch (error) {
+        setDeleteId(null);
+    } catch (error) {
         console.error("Error deleting category", error);
         alert("Erro ao excluir categoria.");
-      }
+    } finally {
+        setIsLoading(false);
     }
   };
 
@@ -107,8 +124,6 @@ const CategoriasPage: React.FC = () => {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    // Reset input
     e.target.value = '';
 
     if (file.type === "application/pdf") {
@@ -131,7 +146,6 @@ const CategoriasPage: React.FC = () => {
 
       let count = 0;
       for (const row of data) {
-         // Headers: Tipo, Categoria, Subcategoria, Cadastro
          const type = row['Tipo'] || row['TIPO'] || 'Produto';
          const category = row['Categoria'] || row['CATEGORIA'];
          const sub = row['Subcategoria'] || row['SUBCATEGORIA'] || '';
@@ -174,16 +188,61 @@ const CategoriasPage: React.FC = () => {
     document.body.removeChild(link);
   };
 
+  // --- Multi-Selection Handlers ---
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      const allIdsOnPage = currentData.map(item => item.id!);
+      const newSelection = new Set(selectedIds);
+      allIdsOnPage.forEach(id => newSelection.add(id));
+      setSelectedIds(newSelection);
+    } else {
+      const newSelection = new Set(selectedIds);
+      currentData.forEach(item => newSelection.delete(item.id!));
+      setSelectedIds(newSelection);
+    }
+  };
+
+  const handleSelectOne = (id: string) => {
+    const newSelection = new Set(selectedIds);
+    if (newSelection.has(id)) {
+      newSelection.delete(id);
+    } else {
+      newSelection.add(id);
+    }
+    setSelectedIds(newSelection);
+  };
+
+  const handleBulkDelete = async () => {
+    if (!window.confirm(`Tem certeza que deseja excluir ${selectedIds.size} itens?`)) return;
+    
+    setIsDeletingMultiple(true);
+    try {
+      const idsToDelete = Array.from(selectedIds).filter(id => !id.startsWith('default-'));
+      if (idsToDelete.length < selectedIds.size) {
+         alert("Alguns itens padrão não podem ser excluídos.");
+      }
+      await Promise.all(idsToDelete.map(id => settingsService.deleteCategory(id)));
+      setSelectedIds(new Set());
+      fetchCategories();
+    } catch (error) {
+      console.error(error);
+      alert("Erro ao excluir alguns itens.");
+    } finally {
+      setIsDeletingMultiple(false);
+    }
+  };
+
   const filteredData = categories.filter(c => 
     c.category.toLowerCase().includes(searchTerm.toLowerCase()) || 
     c.subcategory.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Pagination Logic
   const currentData = filteredData.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
+
+  const isAllSelected = currentData.length > 0 && currentData.every(item => selectedIds.has(item.id!));
 
   return (
     <>
@@ -232,12 +291,19 @@ const CategoriasPage: React.FC = () => {
         </Button>
       </div>
 
-      {/* Table Container with padding for fixed footer */}
       <div className="pb-20">
         <div className="overflow-x-auto rounded-xl border" style={{ borderColor: currentTheme.colors.border, backgroundColor: currentTheme.colors.card }}>
           <table className="w-full text-left text-sm border-collapse">
             <thead>
               <tr style={{ backgroundColor: currentTheme.isDark ? 'rgba(255,255,255,0.05)' : '#e5e7eb' }}>
+                <th className="p-4 w-10 text-center">
+                    <input 
+                        type="checkbox" 
+                        checked={isAllSelected}
+                        onChange={handleSelectAll}
+                        className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                    />
+                </th>
                 <th className="p-4 font-medium" style={{ color: currentTheme.colors.textSecondary }}>Tipo</th>
                 <th className="p-4 font-medium" style={{ color: currentTheme.colors.textSecondary }}>Categoria</th>
                 <th className="p-4 font-medium" style={{ color: currentTheme.colors.textSecondary }}>Subcategoria</th>
@@ -248,53 +314,67 @@ const CategoriasPage: React.FC = () => {
             <tbody>
               {currentData.length === 0 ? (
                  <tr>
-                   <td colSpan={5} className="p-8 text-center opacity-50">
+                   <td colSpan={6} className="p-8 text-center opacity-50">
                       <Tag className="h-8 w-8 mx-auto mb-2" />
                       Nenhuma categoria encontrada.
                    </td>
                  </tr>
               ) : (
-                currentData.map((item, index) => (
-                  <tr 
-                    key={item.id}
-                    className="group hover:opacity-80 transition-opacity"
-                    style={{ backgroundColor: index % 2 === 0 ? 'transparent' : (currentTheme.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)') }}
-                  >
-                    <td className="p-4">
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${item.type === 'Produto' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
-                         {item.type}
-                      </span>
-                    </td>
-                    <td className="p-4 font-medium" style={{ color: currentTheme.colors.text }}>{item.category}</td>
-                    <td className="p-4" style={{ color: currentTheme.colors.textSecondary }}>{item.subcategory || '-'}</td>
-                    <td className="p-4" style={{ color: currentTheme.colors.text }}>{item.registrationType}</td>
-                    <td className="p-4 text-center">
-                      <div className="flex items-center justify-center space-x-2">
-                        <button 
-                          onClick={() => handleEdit(item)}
-                          className="p-1.5 rounded hover:bg-blue-500/10 text-blue-500 transition-colors"
-                          title="Editar"
-                        >
-                          <Edit size={16} />
-                        </button>
-                        <button 
-                          onClick={() => handleDelete(item.id!)}
-                          className="p-1.5 rounded hover:bg-red-500/10 text-red-500 transition-colors"
-                          title="Excluir"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                currentData.map((item, index) => {
+                  const isSelected = selectedIds.has(item.id!);
+                  const rowBackground = isSelected 
+                      ? (currentTheme.isDark ? 'rgba(59, 130, 246, 0.2)' : '#eff6ff')
+                      : index % 2 === 0 ? 'transparent' : (currentTheme.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)');
+
+                  return (
+                    <tr 
+                        key={item.id}
+                        className="group hover:opacity-80 transition-opacity"
+                        style={{ backgroundColor: rowBackground }}
+                    >
+                        <td className="p-4 text-center">
+                            <input 
+                                type="checkbox" 
+                                checked={isSelected}
+                                onChange={() => handleSelectOne(item.id!)}
+                                className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                            />
+                        </td>
+                        <td className="p-4">
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${item.type === 'Produto' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
+                            {item.type}
+                        </span>
+                        </td>
+                        <td className="p-4 font-medium" style={{ color: currentTheme.colors.text }}>{item.category}</td>
+                        <td className="p-4" style={{ color: currentTheme.colors.textSecondary }}>{item.subcategory || '-'}</td>
+                        <td className="p-4" style={{ color: currentTheme.colors.text }}>{item.registrationType}</td>
+                        <td className="p-4 text-center">
+                        <div className="flex items-center justify-center space-x-2">
+                            <button 
+                            onClick={() => handleEdit(item)}
+                            className="p-1.5 rounded hover:bg-blue-500/10 text-blue-500 transition-colors"
+                            title="Editar"
+                            >
+                            <Edit size={16} />
+                            </button>
+                            <button 
+                            onClick={() => handleDeleteClick(item.id!)}
+                            className="p-1.5 rounded hover:bg-red-500/10 text-red-500 transition-colors"
+                            title="Excluir"
+                            >
+                            <Trash2 size={16} />
+                            </button>
+                        </div>
+                        </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Fixed Bottom Bar */}
       <BottomActionsBar 
         totalItems={filteredData.length}
         currentPage={currentPage}
@@ -303,6 +383,10 @@ const CategoriasPage: React.FC = () => {
         onImport={handleImportClick}
         onExport={handleExport}
         isImporting={isLoading}
+        selectedCount={selectedIds.size}
+        onDeleteSelected={handleBulkDelete}
+        onCancelSelection={() => setSelectedIds(new Set())}
+        isDeleting={isDeletingMultiple}
       />
 
       {/* Modal */}
@@ -365,6 +449,50 @@ const CategoriasPage: React.FC = () => {
                    <Button type="submit">{editingId ? 'Atualizar' : 'Salvar'}</Button>
                 </div>
              </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteId && (
+        <div 
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          onClick={() => setDeleteId(null)}
+        >
+          <div 
+            className="w-full max-w-sm rounded-xl shadow-xl border p-6 text-center animate-in zoom-in-95 duration-200"
+            style={{ 
+              backgroundColor: currentTheme.colors.card, 
+              borderColor: currentTheme.colors.border 
+            }} 
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-4">
+              <AlertTriangle className="h-6 w-6 text-red-600" />
+            </div>
+            
+            <h3 className="text-lg font-bold mb-2" style={{ color: currentTheme.colors.text }}>Confirmar Exclusão</h3>
+            <p className="text-sm mb-6 opacity-80" style={{ color: currentTheme.colors.textSecondary }}>
+              Tem certeza que deseja excluir esta categoria? Esta ação não pode ser desfeita.
+            </p>
+
+            <div className="flex gap-3 justify-center">
+              <Button 
+                variant="secondary" 
+                onClick={() => setDeleteId(null)}
+                className="w-full"
+              >
+                Cancelar
+              </Button>
+              <Button 
+                variant="danger" 
+                onClick={confirmDelete}
+                isLoading={isLoading}
+                className="w-full"
+              >
+                Excluir
+              </Button>
+            </div>
           </div>
         </div>
       )}

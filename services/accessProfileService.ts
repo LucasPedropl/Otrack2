@@ -5,9 +5,12 @@ import { AccessProfile } from '../types';
 const COLLECTION_NAME = 'access_profiles';
 
 const DEFAULT_PROFILES: Omit<AccessProfile, 'id'>[] = [
-  { name: 'Administrador', description: 'Acesso total ao sistema', permissions: ['all'], level: 'Alto' },
-  { name: 'Almoxarife', description: 'Gerencia estoque e obras', permissions: ['read_inventory', 'write_inventory'], level: 'Médio' },
-  { name: 'Operário', description: 'Visualização básica', permissions: ['read_inventory'], level: 'Baixo' },
+  { 
+    id: 'default-admin', // ID fixo para o admin
+    name: 'Administrador', 
+    permissions: ['admin:full'],
+    allowedSites: [] // Empty implies all
+  } as any, // Cast as any allows passing the ID in the mock list
 ];
 
 export const accessProfileService = {
@@ -17,14 +20,22 @@ export const accessProfileService = {
     const snapshot = await getDocs(q);
 
     if (snapshot.empty) {
-      // Retorna mocks se vazio para demonstrar a UI
-      return DEFAULT_PROFILES.map((p, i) => ({ id: `default-${i}`, ...p }));
+      // Retorna apenas o Admin padrão se vazio
+      return DEFAULT_PROFILES.map((p) => ({ ...p }));
     }
     
-    return snapshot.docs.map(doc => ({
+    // Garante que o Admin padrão sempre apareça na lista (caso não esteja no banco ainda em dev)
+    const profiles = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     } as AccessProfile));
+
+    const adminExists = profiles.some(p => p.id === 'default-admin' || p.permissions.includes('admin:full'));
+    if (!adminExists) {
+        profiles.unshift(DEFAULT_PROFILES[0] as AccessProfile);
+    }
+
+    return profiles;
   },
 
   add: async (profile: Omit<AccessProfile, 'id'>) => {
@@ -33,13 +44,13 @@ export const accessProfileService = {
   },
 
   update: async (id: string, profile: Partial<AccessProfile>) => {
-    if (id.startsWith('default-')) throw new Error("Não é possível editar perfis padrão.");
+    if (id === 'default-admin') throw new Error("O perfil Administrador não pode ser modificado.");
     const ref = doc(db, COLLECTION_NAME, id);
     await updateDoc(ref, profile);
   },
 
   delete: async (id: string) => {
-    if (id.startsWith('default-')) throw new Error("Não é possível excluir perfis padrão.");
+    if (id === 'default-admin') throw new Error("O perfil Administrador não pode ser excluído.");
     const ref = doc(db, COLLECTION_NAME, id);
     await deleteDoc(ref);
   }
