@@ -57,20 +57,8 @@ const ObraRoot: React.FC = () => {
           borderColor: currentTheme.colors.border
         }}
       >
-        {/* Top Navigation / Breadcrumb */}
-        <div className="px-6 pt-6 pb-2">
-           <button 
-              onClick={() => navigate('/admin/obras')} 
-              className="flex items-center gap-2 text-sm font-medium hover:underline transition-all opacity-60 hover:opacity-100"
-              style={{ color: currentTheme.colors.text }}
-           >
-              <ArrowLeft size={16} />
-              Voltar para Lista de Obras
-           </button>
-        </div>
-
         {/* Main Title Row */}
-        <div className="px-6 py-4 flex flex-col md:flex-row md:items-start justify-between gap-4">
+        <div className="px-6 py-6 flex flex-col md:flex-row md:items-start justify-between gap-4">
             <div className="flex items-start gap-4">
                {/* Icon Box */}
                <div 
