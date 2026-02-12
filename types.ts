@@ -55,6 +55,9 @@ export interface StockMovement {
   reason?: string; // Motivo / Observação
   userId?: string; // Quem fez a movimentação
   userName?: string;
+  // Optional Denormalized fields for list views
+  itemName?: string;
+  itemUnit?: string;
 }
 
 export interface ConstructionSite {

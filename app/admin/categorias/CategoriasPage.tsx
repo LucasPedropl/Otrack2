@@ -50,10 +50,7 @@ const CategoriasPage: React.FC = () => {
   }, []);
 
   const handleEdit = (cat: ItemCategory) => {
-    if (cat.id?.startsWith('default-')) {
-       alert("Este é um item padrão de demonstração. Importe a lista para poder editar.");
-       return;
-    }
+    // Restriction removed
     setFormData({
        type: cat.type,
        category: cat.category,
@@ -65,10 +62,7 @@ const CategoriasPage: React.FC = () => {
   };
 
   const handleDeleteClick = (id: string) => {
-    if (id.startsWith('default-')) {
-       alert("Não é possível excluir itens padrão do sistema (mock). Importe os dados para editar.");
-       return;
-    }
+    // Restriction removed
     setDeleteId(id);
   };
 
@@ -217,11 +211,8 @@ const CategoriasPage: React.FC = () => {
     
     setIsDeletingMultiple(true);
     try {
-      const idsToDelete = Array.from(selectedIds).filter(id => !id.startsWith('default-'));
-      if (idsToDelete.length < selectedIds.size) {
-         alert("Alguns itens padrão não podem ser excluídos.");
-      }
-      await Promise.all(idsToDelete.map(id => settingsService.deleteCategory(id)));
+      // Logic simplified: No more filtering of default- ids
+      await Promise.all(Array.from(selectedIds).map((id: string) => settingsService.deleteCategory(id)));
       setSelectedIds(new Set());
       fetchCategories();
     } catch (error) {

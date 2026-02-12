@@ -335,7 +335,7 @@ const InsumosPage: React.FC = () => {
     
     setIsDeletingMultiple(true);
     try {
-      await Promise.all(Array.from(selectedIds).map(id => inventoryService.delete(id)));
+      await Promise.all(Array.from(selectedIds).map((id: string) => inventoryService.delete(id)));
       setSelectedIds(new Set());
       fetchData();
     } catch (error) {

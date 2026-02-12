@@ -52,20 +52,14 @@ const UnidadesPage: React.FC = () => {
   }, []);
 
   const handleEdit = (unit: MeasurementUnit) => {
-    if (unit.id?.startsWith('default-')) {
-       alert("Este é um item padrão de demonstração. Importe a lista para poder editar.");
-       return;
-    }
+    // Restriction removed: allow editing any item
     setFormData({ name: unit.name, abbreviation: unit.abbreviation });
     setEditingId(unit.id!);
     setIsModalOpen(true);
   };
 
   const handleDeleteClick = (id: string) => {
-    if (id.startsWith('default-')) {
-       alert("Não é possível excluir itens padrão do sistema (mock). Importe os dados para editar.");
-       return;
-    }
+    // Restriction removed: allow deleting any item
     setDeleteId(id);
   };
 
@@ -213,11 +207,8 @@ const UnidadesPage: React.FC = () => {
     
     setIsDeletingMultiple(true);
     try {
-      const idsToDelete = Array.from(selectedIds).filter(id => !id.startsWith('default-'));
-      if (idsToDelete.length < selectedIds.size) {
-         alert("Alguns itens padrão não podem ser excluídos.");
-      }
-      await Promise.all(idsToDelete.map(id => settingsService.deleteUnit(id)));
+      // Logic simplified: No more filtering of default- ids
+      await Promise.all(Array.from(selectedIds).map((id: string) => settingsService.deleteUnit(id)));
       setSelectedIds(new Set());
       fetchUnits();
     } catch (error) {

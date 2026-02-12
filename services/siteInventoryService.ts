@@ -110,5 +110,31 @@ export const siteInventoryService = {
         date: data.date?.toDate() || new Date()
       } as StockMovement;
     });
+  },
+
+  // Busca TODAS as movimentações da obra (Agregador)
+  // Nota: Em produção, o ideal seria ter uma coleção "flat" de movements, 
+  // mas aqui vamos iterar os itens para manter a estrutura simples.
+  getAllSiteMovements: async (siteId: string): Promise<StockMovement[]> => {
+    // 1. Pegar todos os itens da obra
+    const items = await siteInventoryService.getSiteInventory(siteId);
+    
+    // 2. Buscar histórico de cada um em paralelo
+    const promises = items.map(async (item) => {
+        const history = await siteInventoryService.getItemHistory(siteId, item.id!);
+        // Injeta o nome do item no objeto de movimento para exibição
+        return history.map(h => ({
+            ...h,
+            itemName: item.name,
+            itemUnit: item.unit
+        }));
+    });
+
+    const results = await Promise.all(promises);
+    
+    // 3. Achatada array de arrays e ordena por data (mais recente primeiro)
+    const allMovements = results.flat().sort((a, b) => b.date.getTime() - a.date.getTime());
+    
+    return allMovements;
   }
 };

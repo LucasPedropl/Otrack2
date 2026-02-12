@@ -333,8 +333,8 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
           
           {/* 2. SECONDARY SIDEBAR (SETTINGS PANEL) */}
           <aside
-            className={`flex-shrink-0 transition-all duration-300 overflow-visible flex flex-col z-20 relative
-              ${isSettingsOpen ? (isSettingsCollapsed ? 'w-20' : 'w-64') : 'w-0 overflow-hidden'}
+            className={`flex-shrink-0 transition-all duration-300 flex flex-col z-20 relative
+              ${isSettingsOpen ? (isSettingsCollapsed ? 'w-20 overflow-visible' : 'w-64 overflow-y-auto') : 'w-0 overflow-hidden'}
             `}
             style={{ 
                 // Now strictly uses sidebar background color to match the primary sidebar
@@ -342,7 +342,8 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
                 color: currentTheme.colors.sidebarText,
                 height: '100%',
                 opacity: isSettingsOpen ? 1 : 0,
-                transform: isSettingsOpen ? 'translateX(0)' : 'translateX(-100%)'
+                transform: isSettingsOpen ? 'translateX(0)' : 'translateX(-100%)',
+                visibility: isSettingsOpen ? 'visible' : 'hidden'
             }}
           >
             {/* Physical Border Line for Secondary Sidebar */}
@@ -475,7 +476,7 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
       )}
 
       {/* Floating Menu for Secondary Sidebar (Collapsed) */}
-      {isSettingsCollapsed && hoveredSettingsMenu && hoveredMenuPosition && (
+      {isSettingsOpen && isSettingsCollapsed && hoveredSettingsMenu && hoveredMenuPosition && (
         <div 
           className="fixed z-[100] rounded-lg shadow-xl overflow-hidden border animate-in fade-in slide-in-from-left-2 duration-150"
           style={{ 

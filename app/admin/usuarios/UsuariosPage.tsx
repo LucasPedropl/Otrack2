@@ -97,12 +97,6 @@ const UsuariosPage: React.FC = () => {
         return;
     }
 
-    // 2. Prevent deleting the main admin (Hardcoded protection)
-    if (targetUser?.email === 'pedrolucasmota2005@gmail.com') {
-        alert("Segurança: O Administrador Principal do sistema não pode ser excluído.");
-        return;
-    }
-
     setDeleteId(id);
   };
 
@@ -206,17 +200,16 @@ const UsuariosPage: React.FC = () => {
   const handleBulkDelete = async () => {
     const currentUser = authService.getCurrentUser();
     
-    // Filter out unsafe deletions
-    const safeToDeleteIds = Array.from(selectedIds).filter(id => {
+    // Filter out unsafe deletions (only self)
+    const safeToDeleteIds = (Array.from(selectedIds) as string[]).filter((id) => {
         const u = users.find(user => user.id === id);
         if (!u) return false;
         if (u.email === currentUser?.email) return false;
-        if (u.email === 'pedrolucasmota2005@gmail.com') return false;
         return true;
     });
 
     if (safeToDeleteIds.length < selectedIds.size) {
-        alert("Alguns usuários selecionados não podem ser excluídos (sua própria conta ou o admin principal). Eles serão ignorados.");
+        alert("Você selecionou sua própria conta. Ela não será excluída para manter seu acesso.");
     }
 
     if (safeToDeleteIds.length === 0) return;
@@ -337,7 +330,6 @@ const UsuariosPage: React.FC = () => {
                   
                   // Resolve profile name
                   const profileName = profiles.find(p => p.id === item.profileId)?.name || item.role;
-                  const isMainAdmin = item.email === 'pedrolucasmota2005@gmail.com';
 
                   return (
                     <tr 
@@ -350,13 +342,11 @@ const UsuariosPage: React.FC = () => {
                                 type="checkbox" 
                                 checked={isSelected}
                                 onChange={() => handleSelectOne(item.id!)}
-                                disabled={isMainAdmin}
-                                className={`rounded border-gray-300 focus:ring-brand-500 ${isMainAdmin ? 'opacity-30 cursor-not-allowed' : ''}`}
+                                className="rounded border-gray-300 focus:ring-brand-500"
                             />
                         </td>
                         <td className="p-4 font-medium" style={{ color: currentTheme.colors.text }}>
                             {item.name || 'Usuário Sem Nome'}
-                            {isMainAdmin && <span className="ml-2 text-[10px] bg-yellow-500/20 text-yellow-600 px-1.5 py-0.5 rounded border border-yellow-500/30">Admin Principal</span>}
                         </td>
                         <td className="p-4" style={{ color: currentTheme.colors.text }}>
                             <div className="flex items-center gap-2">
@@ -366,8 +356,8 @@ const UsuariosPage: React.FC = () => {
                         </td>
                         <td className="p-4">
                             <span className="flex items-center gap-2 px-2 py-1 rounded-full text-xs font-bold w-fit bg-opacity-10 border opacity-80" style={{ 
-                                backgroundColor: isMainAdmin ? 'rgba(234, 179, 8, 0.1)' : 'rgba(99, 102, 241, 0.1)',
-                                color: isMainAdmin ? '#ca8a04' : currentTheme.colors.text,
+                                backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                                color: currentTheme.colors.text,
                                 borderColor: currentTheme.colors.border
                             }}>
                                 <Shield size={12} />
@@ -388,9 +378,8 @@ const UsuariosPage: React.FC = () => {
                             </button>
                             <button 
                                 onClick={() => handleDeleteClick(item.id!)}
-                                className={`p-1.5 rounded transition-colors ${isMainAdmin ? 'opacity-30 cursor-not-allowed text-gray-400' : 'hover:bg-red-500/10 text-red-500'}`}
+                                className="p-1.5 rounded hover:bg-red-500/10 text-red-500 transition-colors"
                                 title="Excluir"
-                                disabled={isMainAdmin}
                             >
                                 <Trash2 size={16} />
                             </button>

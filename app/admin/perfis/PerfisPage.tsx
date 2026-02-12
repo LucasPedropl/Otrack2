@@ -128,7 +128,7 @@ const PerfisPage: React.FC = () => {
 
   // --- Logic Helpers ---
 
-  const isAdmin = (id: string) => id === 'default-admin';
+  // NOTE: Previous "isAdmin" check removed to allow editing all profiles.
 
   const toggleModuleExpand = (moduleId: string) => {
     const newExpanded = new Set(expandedModules);
@@ -142,7 +142,7 @@ const PerfisPage: React.FC = () => {
 
   const hasModuleAccess = (module: string) => {
     const prefix = `${module}:`;
-    return Array.from(permissions).some(p => p.startsWith(prefix)) || permissions.has('admin:full');
+    return Array.from(permissions).some((p: string) => p.startsWith(prefix)) || permissions.has('admin:full');
   };
 
   const isFullAccess = (module: string, actions: ModuleAction[]) => {
@@ -166,7 +166,7 @@ const PerfisPage: React.FC = () => {
     } else {
         newPerms.delete(permString);
         if (action === 'view') {
-            Array.from(newPerms).forEach(p => {
+            Array.from(newPerms).forEach((p: string) => {
                 if (p.startsWith(`${module}:`)) newPerms.delete(p);
             });
         }
@@ -204,10 +204,6 @@ const PerfisPage: React.FC = () => {
   // --- Handlers ---
 
   const handleEdit = (profile: AccessProfile) => {
-    if (isAdmin(profile.id!)) {
-       alert("O perfil Administrador é padrão do sistema e não pode ser editado nesta versão.");
-       return;
-    }
     setName(profile.name);
     setPermissions(new Set(profile.permissions));
     
@@ -227,11 +223,6 @@ const PerfisPage: React.FC = () => {
 
   // --- DELETE LOGIC ---
   const handleClickDelete = async (id: string) => {
-    if (isAdmin(id)) {
-       alert("O perfil Administrador não pode ser excluído.");
-       return;
-    }
-    
     setIsLoading(true);
     try {
         // Check for dependencies
@@ -386,7 +377,6 @@ const PerfisPage: React.FC = () => {
 
   // --- Bulk Handlers ---
   const handleSelectOne = (id: string) => {
-    if (isAdmin(id)) return;
     const newSelection = new Set(selectedIds);
     if (newSelection.has(id)) newSelection.delete(id);
     else newSelection.add(id);
@@ -395,10 +385,7 @@ const PerfisPage: React.FC = () => {
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
-      const allIds = currentData
-        .filter(p => !isAdmin(p.id!))
-        .map(item => item.id!);
-      
+      const allIds = currentData.map(item => item.id!);
       const newSelection = new Set(selectedIds);
       allIds.forEach(id => newSelection.add(id));
       setSelectedIds(newSelection);
@@ -410,13 +397,36 @@ const PerfisPage: React.FC = () => {
   };
 
   const handleBulkDelete = async () => {
-    if (!window.confirm(`Tem certeza que deseja excluir ${selectedIds.size} perfis?`)) return;
-    
+    // 1. Verify dependencies BEFORE showing confirm or proceeding
     setIsDeletingMultiple(true);
     try {
-      await Promise.all(Array.from(selectedIds).map(id => accessProfileService.delete(id)));
-      setSelectedIds(new Set());
-      fetchProfiles();
+        const allUsers = await userService.getAll();
+        const profilesWithUsers: string[] = [];
+
+        // Check each selected profile for users
+        selectedIds.forEach((profileId: string) => {
+            const hasUsers = allUsers.some(u => u.profileId === profileId);
+            if (hasUsers) {
+                const profileName = profiles.find(p => p.id === profileId)?.name || 'Desconhecido';
+                profilesWithUsers.push(profileName);
+            }
+        });
+
+        if (profilesWithUsers.length > 0) {
+            alert(`Ação bloqueada!\n\nOs seguintes perfis possuem usuários vinculados e não podem ser excluídos em massa:\n\n- ${profilesWithUsers.join('\n- ')}\n\nPor favor, exclua-os individualmente para gerenciar a migração dos usuários.`);
+            setIsDeletingMultiple(false);
+            return;
+        }
+
+        // 2. Proceed if safe
+        if (!window.confirm(`Tem certeza que deseja excluir ${selectedIds.size} perfis sem usuários vinculados?`)) {
+            setIsDeletingMultiple(false);
+            return;
+        }
+        
+        await Promise.all(Array.from(selectedIds).map((id: string) => accessProfileService.delete(id)));
+        setSelectedIds(new Set());
+        fetchProfiles();
     } catch (error) {
       console.error(error);
       alert("Erro ao excluir alguns itens.");
@@ -434,7 +444,7 @@ const PerfisPage: React.FC = () => {
     currentPage * itemsPerPage
   );
 
-  const isAllSelected = currentData.length > 0 && currentData.every(item => isAdmin(item.id!) || selectedIds.has(item.id!));
+  const isAllSelected = currentData.length > 0 && currentData.every(item => selectedIds.has(item.id!));
 
   // --- Styles ---
   const baseInputClass = "w-full px-3 py-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 transition-colors";
@@ -512,7 +522,6 @@ const PerfisPage: React.FC = () => {
               ) : (
                 currentData.map((item, index) => {
                   const isSelected = selectedIds.has(item.id!);
-                  const isAdm = isAdmin(item.id!);
                   const rowBackground = isSelected 
                       ? (currentTheme.isDark ? 'rgba(59, 130, 246, 0.2)' : '#eff6ff')
                       : index % 2 === 0 ? 'transparent' : (currentTheme.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)');
@@ -528,38 +537,34 @@ const PerfisPage: React.FC = () => {
                                 type="checkbox" 
                                 checked={isSelected}
                                 onChange={() => handleSelectOne(item.id!)}
-                                disabled={isAdm}
-                                className={`rounded border-gray-300 focus:ring-brand-500 ${isAdm ? 'opacity-30 cursor-not-allowed' : 'text-brand-600'}`}
+                                className="rounded border-gray-300 focus:ring-brand-500 text-brand-600"
                             />
                         </td>
                         <td className="p-4 font-medium" style={{ color: currentTheme.colors.text }}>
                             {item.name}
-                            {isAdm && <span className="ml-2 text-[10px] bg-yellow-500/20 text-yellow-600 px-1.5 py-0.5 rounded border border-yellow-500/30">Padrão</span>}
                         </td>
                         <td className="p-4">
                             <span className="text-xs px-2 py-1 rounded bg-opacity-10 border opacity-80" style={{ 
-                                backgroundColor: isAdm ? 'rgba(16, 185, 129, 0.1)' : 'rgba(99, 102, 241, 0.1)',
-                                color: isAdm ? '#10b981' : currentTheme.colors.text,
+                                backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                                color: currentTheme.colors.text,
                                 borderColor: currentTheme.colors.border
                             }}>
-                                {isAdm ? 'Acesso Total' : `${item.permissions.length} regras`}
+                                {item.permissions.length} regras
                             </span>
                         </td>
                         <td className="p-4 text-center">
                         <div className="flex items-center justify-center space-x-2">
                             <button 
                                 onClick={() => handleEdit(item)}
-                                className={`p-1.5 rounded transition-colors ${isAdm ? 'opacity-30 cursor-not-allowed text-gray-400' : 'hover:bg-blue-500/10 text-blue-500'}`}
+                                className="p-1.5 rounded transition-colors hover:bg-blue-500/10 text-blue-500"
                                 title="Editar"
-                                disabled={isAdm}
                             >
                                 <Edit size={16} />
                             </button>
                             <button 
                                 onClick={() => handleClickDelete(item.id!)}
-                                className={`p-1.5 rounded transition-colors ${isAdm ? 'opacity-30 cursor-not-allowed text-gray-400' : 'hover:bg-red-500/10 text-red-500'}`}
+                                className="p-1.5 rounded transition-colors hover:bg-red-500/10 text-red-500"
                                 title="Excluir"
-                                disabled={isAdm}
                             >
                                 <Trash2 size={16} />
                             </button>

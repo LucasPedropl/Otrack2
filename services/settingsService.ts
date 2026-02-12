@@ -2,7 +2,7 @@ import { db } from '../lib/firebase';
 import { collection, getDocs, addDoc, serverTimestamp, query, orderBy, doc, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { MeasurementUnit, ItemCategory } from '../types';
 
-// Dados padrão extraídos dos relatórios (OCR)
+// Dados padrão extraídos dos relatórios (OCR) - Úteis para importação, mas não exibidos como mock
 export const DEFAULT_UNITS: Omit<MeasurementUnit, 'id'>[] = [
   { name: '%', abbreviation: '%' },
   { name: 'Balde', abbreviation: 'Bd' },
@@ -66,10 +66,7 @@ export const settingsService = {
     const q = query(ref, orderBy("name"));
     const snapshot = await getDocs(q);
     
-    if (snapshot.empty) {
-      return DEFAULT_UNITS.map((u, index) => ({ id: `default-${index}`, ...u }));
-    }
-
+    // Removido retorno de dados MOCK. Se estiver vazio, retorna vazio.
     return snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
@@ -82,14 +79,11 @@ export const settingsService = {
   },
 
   updateUnit: async (id: string, unit: Partial<MeasurementUnit>) => {
-    // Evita editar itens padrão se ainda não foram importados (mockados)
-    if (id.startsWith('default-')) throw new Error("Importe a lista padrão antes de editar.");
     const ref = doc(db, UNITS_COLLECTION, id);
     await updateDoc(ref, unit);
   },
 
   deleteUnit: async (id: string) => {
-    if (id.startsWith('default-')) return;
     const ref = doc(db, UNITS_COLLECTION, id);
     await deleteDoc(ref);
   },
@@ -112,10 +106,7 @@ export const settingsService = {
     const q = query(ref, orderBy("category"));
     const snapshot = await getDocs(q);
 
-    if (snapshot.empty) {
-      return DEFAULT_CATEGORIES.map((c, index) => ({ id: `default-${index}`, ...c }));
-    }
-
+    // Removido retorno de dados MOCK
     return snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
@@ -128,13 +119,11 @@ export const settingsService = {
   },
 
   updateCategory: async (id: string, category: Partial<ItemCategory>) => {
-    if (id.startsWith('default-')) throw new Error("Importe a lista padrão antes de editar.");
     const ref = doc(db, CATEGORIES_COLLECTION, id);
     await updateDoc(ref, category);
   },
 
   deleteCategory: async (id: string) => {
-    if (id.startsWith('default-')) return;
     const ref = doc(db, CATEGORIES_COLLECTION, id);
     await deleteDoc(ref);
   },
