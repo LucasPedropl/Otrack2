@@ -74,7 +74,7 @@ const CategoriasPage: React.FC = () => {
         const newSelection = new Set(selectedIds);
         newSelection.delete(deleteId);
         setSelectedIds(newSelection);
-        fetchCategories();
+        await fetchCategories();
         setDeleteId(null);
     } catch (error) {
         console.error("Error deleting category", error);
@@ -207,14 +207,16 @@ const CategoriasPage: React.FC = () => {
   };
 
   const handleBulkDelete = async () => {
-    if (!window.confirm(`Tem certeza que deseja excluir ${selectedIds.size} itens?`)) return;
+    const idsToDelete = Array.from(selectedIds) as string[];
+    if (idsToDelete.length === 0) return;
+
+    if (!window.confirm(`Tem certeza que deseja excluir ${idsToDelete.length} itens?`)) return;
     
     setIsDeletingMultiple(true);
     try {
-      // Logic simplified: No more filtering of default- ids
-      await Promise.all(Array.from(selectedIds).map((id: string) => settingsService.deleteCategory(id)));
+      await Promise.all(idsToDelete.map(id => settingsService.deleteCategory(id)));
       setSelectedIds(new Set());
-      fetchCategories();
+      await fetchCategories();
     } catch (error) {
       console.error(error);
       alert("Erro ao excluir alguns itens.");
@@ -284,7 +286,7 @@ const CategoriasPage: React.FC = () => {
 
       <div className="pb-20">
         <div className="overflow-x-auto rounded-xl border" style={{ borderColor: currentTheme.colors.border, backgroundColor: currentTheme.colors.card }}>
-          <table className="w-full text-left text-sm border-collapse">
+          <table className="w-full text-left text-sm border-collapse min-w-[700px]">
             <thead>
               <tr style={{ backgroundColor: currentTheme.isDark ? 'rgba(255,255,255,0.05)' : '#e5e7eb' }}>
                 <th className="p-4 w-10 text-center">
@@ -383,7 +385,7 @@ const CategoriasPage: React.FC = () => {
       {/* Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-2xl shadow-xl border p-6" style={{ backgroundColor: currentTheme.colors.card, borderColor: currentTheme.colors.border }}>
+          <div className="w-full max-w-lg rounded-2xl shadow-xl border p-6 mx-4" style={{ backgroundColor: currentTheme.colors.card, borderColor: currentTheme.colors.border }}>
              <h2 className="text-lg font-bold mb-4" style={{ color: currentTheme.colors.text }}>
                 {editingId ? 'Editar Categoria' : 'Nova Categoria'}
              </h2>

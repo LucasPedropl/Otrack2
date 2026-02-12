@@ -331,13 +331,16 @@ const InsumosPage: React.FC = () => {
   };
 
   const handleBulkDelete = async () => {
-    if (!window.confirm(`Tem certeza que deseja excluir ${selectedIds.size} itens?`)) return;
+    const idsToDelete = Array.from(selectedIds) as string[];
+    if (idsToDelete.length === 0) return;
+
+    if (!window.confirm(`Tem certeza que deseja excluir ${idsToDelete.length} itens?`)) return;
     
     setIsDeletingMultiple(true);
     try {
-      await Promise.all(Array.from(selectedIds).map((id: string) => inventoryService.delete(id)));
+      await Promise.all(idsToDelete.map(id => inventoryService.delete(id)));
       setSelectedIds(new Set());
-      fetchData();
+      await fetchData();
     } catch (error) {
       console.error(error);
       alert("Erro ao excluir alguns itens.");
@@ -470,7 +473,7 @@ const InsumosPage: React.FC = () => {
             {viewMode === 'list' ? (
               // LIST VIEW (Table)
               <div className="overflow-x-auto rounded-xl border" style={{ borderColor: currentTheme.colors.border, backgroundColor: currentTheme.colors.card }}>
-                <table className="w-full text-left text-sm border-collapse">
+                <table className="w-full text-left text-sm border-collapse min-w-[900px]">
                   <thead>
                     <tr className="" style={{ backgroundColor: currentTheme.isDark ? 'rgba(255,255,255,0.05)' : '#e5e7eb' }}>
                       <th className="p-4 w-10 text-center">
@@ -638,7 +641,7 @@ const InsumosPage: React.FC = () => {
           onClick={() => setIsModalOpen(false)}
         >
           <div 
-            className="w-full max-w-2xl rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto border relative"
+            className="w-full max-w-2xl rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto border relative mx-4"
             style={{ 
               backgroundColor: currentTheme.colors.card, 
               borderColor: currentTheme.colors.border 

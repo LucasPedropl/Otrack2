@@ -1,6 +1,7 @@
 import React from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
-import { Search, Settings } from 'lucide-react';
+import { useSidebar } from '../../contexts/SidebarContext';
+import { Search, Settings, Menu } from 'lucide-react';
 
 interface TopBarProps {
   onToggleSettings: () => void;
@@ -9,15 +10,16 @@ interface TopBarProps {
 
 export const TopBar: React.FC<TopBarProps> = ({ onToggleSettings, isSettingsOpen }) => {
   const { currentTheme } = useTheme();
+  const { toggleMobileSidebar } = useSidebar();
 
   return (
     <header 
-      className="backdrop-blur-sm sticky top-0 z-30 px-4 sm:px-8 py-4 flex flex-col sm:flex-row gap-4 sm:gap-0 justify-between items-center transition-colors duration-300 relative"
+      className="backdrop-blur-sm sticky top-0 z-30 px-4 sm:px-8 py-4 flex gap-4 justify-between items-center transition-colors duration-300 relative"
       style={{ 
         backgroundColor: currentTheme.colors.sidebar, 
       }}
     >
-       {/* Physical Border Line - Using opacity for subtle look on dark/colored sidebars */}
+       {/* Physical Border Line */}
        <div 
          className="absolute bottom-0 left-0 right-0 h-[1px]" 
          style={{ 
@@ -26,16 +28,22 @@ export const TopBar: React.FC<TopBarProps> = ({ onToggleSettings, isSettingsOpen
          }} 
        />
 
-       {/* Left Side: Empty now (Logo removed) */}
-       <div className="flex items-center gap-4 w-full sm:w-auto">
+       {/* Left Side: Mobile Menu Trigger */}
+       <div className="flex items-center gap-4">
+          <button
+            onClick={toggleMobileSidebar}
+            className="md:hidden p-2 -ml-2 rounded-lg hover:bg-white/10 transition-colors"
+            style={{ color: currentTheme.colors.sidebarText }}
+          >
+            <Menu size={24} />
+          </button>
        </div>
 
        {/* Right Side: Search + Settings + Profile */}
-       <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+       <div className="flex items-center gap-3 justify-end flex-1">
          
-         {/* Global Search Bar */}
+         {/* Global Search Bar - Hidden on mobile */}
          <div className="relative hidden md:block w-64">
-            {/* Icon color uses global text color inside the input which is white/light */}
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 opacity-50" style={{ color: currentTheme.colors.text }} />
             <input
               type="text"
@@ -49,19 +57,15 @@ export const TopBar: React.FC<TopBarProps> = ({ onToggleSettings, isSettingsOpen
             />
          </div>
 
-         {/* Settings Button - Toggles Sidebar */}
+         {/* Settings Button */}
          <button 
            onClick={onToggleSettings}
            className={`p-2 rounded-lg transition-all hover:bg-white/10`}
            style={{ 
-             // When active: Primary color. When inactive: Transparent (blends with header)
              backgroundColor: isSettingsOpen ? currentTheme.colors.primary : 'transparent',
-             // Border uses sidebarText opacity to be visible on dark headers but subtle
              border: `1px solid ${isSettingsOpen ? currentTheme.colors.primary : currentTheme.colors.sidebarText}`,
              borderColor: isSettingsOpen ? currentTheme.colors.primary : currentTheme.colors.sidebarText,
-             // Icon uses sidebarText (white on dark headers)
              color: isSettingsOpen ? '#fff' : currentTheme.colors.sidebarText,
-             // Subtle opacity for border when inactive
              opacity: isSettingsOpen ? 1 : 0.8
            }}
            title="Configurações e Cadastros"
@@ -69,7 +73,7 @@ export const TopBar: React.FC<TopBarProps> = ({ onToggleSettings, isSettingsOpen
            <Settings size={20} style={{ opacity: isSettingsOpen ? 1 : 0.8 }} />
          </button>
 
-         {/* Divider with opacity based on Sidebar Text (visible on dark) */}
+         {/* Divider */}
          <div 
            className="h-6 w-px mx-1" 
            style={{ 
@@ -81,7 +85,6 @@ export const TopBar: React.FC<TopBarProps> = ({ onToggleSettings, isSettingsOpen
          {/* Profile Info */}
          <div className="flex items-center space-x-4">
            <div className="text-right hidden sm:block">
-             {/* Text colors mapped to sidebarText to ensure visibility on dark headers */}
              <p className="text-sm font-medium" style={{ color: currentTheme.colors.sidebarText }}>Pedro Mota</p>
              <p className="text-xs" style={{ color: currentTheme.colors.sidebarText, opacity: 0.7 }}>Administrador</p>
            </div>

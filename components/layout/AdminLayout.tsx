@@ -8,7 +8,6 @@ import { SettingsProvider, useSettingsSidebar } from '../../contexts/SettingsCon
 import { TopBar } from './TopBar';
 import { constructionService } from '../../services/constructionService';
 
-// Define paths that belong to the settings menu context
 const SETTINGS_PATHS = [
   '/admin/insumos',
   '/admin/unidades',
@@ -18,7 +17,6 @@ const SETTINGS_PATHS = [
   '/admin/settings'
 ];
 
-// Configuration for Settings Menus
 const SETTINGS_MENUS = [
   {
     id: 'orcamento',
@@ -41,14 +39,19 @@ const SETTINGS_MENUS = [
   }
 ];
 
-// Inner component that consumes both SidebarContext and SettingsContext
 const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { currentTheme } = useTheme();
   
   // Contexts
-  const { isCollapsed: isPrimaryCollapsed, toggleSidebar: togglePrimarySidebar } = useSidebar();
+  const { 
+    isCollapsed: isPrimaryCollapsed, 
+    toggleSidebar: togglePrimarySidebar,
+    isMobileOpen,
+    closeMobileSidebar
+  } = useSidebar();
+
   const { 
     isSettingsOpen, 
     isSettingsCollapsed,
@@ -66,16 +69,13 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
   const [hoveredSettingsMenu, setHoveredSettingsMenu] = useState<string | null>(null);
   const [hoveredMenuPosition, setHoveredMenuPosition] = useState<{ top: number; left: number } | null>(null);
   
-  // Ref to handle the delay/grace period for the floating menu
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Accordion State for Settings Menu (Expanded Mode)
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({
     orcamento: true,
     acesso: true
   });
 
-  // Fetch sites for sidebar
   useEffect(() => {
     const fetchSites = async () => {
       try {
@@ -88,10 +88,7 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
     fetchSites();
   }, []);
 
-  // Sync Sidebar State with Route
   useEffect(() => {
-    // Only auto-open settings sidebar for sub-modules (like Insumos, Users),
-    // NOT for the main Appearance/Theme page ('/admin/settings').
     const autoOpenPaths = SETTINGS_PATHS.filter(path => path !== '/admin/settings');
     const shouldAutoOpen = autoOpenPaths.some(path => location.pathname.startsWith(path));
 
@@ -100,11 +97,18 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
     }
   }, [location.pathname, isSettingsOpen, openSettings]);
 
+  // Close mobile sidebar on route change
+  useEffect(() => {
+    closeMobileSidebar();
+  }, [location.pathname]);
+
   const toggleMenu = (menu: string) => {
     setOpenMenus(prev => ({ ...prev, [menu]: !prev[menu] }));
   };
 
   const handleTooltip = (e: React.MouseEvent<HTMLElement>, label: string, sidebarType: 'primary') => {
+    // Only show tooltips on desktop when collapsed
+    if (window.innerWidth < 768) return;
     if (sidebarType === 'primary' && !isPrimaryCollapsed) return;
 
     const rect = e.currentTarget.getBoundingClientRect();
@@ -116,9 +120,8 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
   };
 
   const handleSettingsMenuHover = (e: React.MouseEvent<HTMLElement>, menuId: string) => {
-    if (!isSettingsCollapsed) return; // Only show floating menu when collapsed
+    if (!isSettingsCollapsed || window.innerWidth < 768) return;
 
-    // Clear any pending close timer when entering the item
     if (hoverTimeoutRef.current) {
         clearTimeout(hoverTimeoutRef.current);
         hoverTimeoutRef.current = null;
@@ -128,7 +131,7 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
     setHoveredSettingsMenu(menuId);
     setHoveredMenuPosition({
       top: rect.top,
-      left: rect.right // Position right next to the secondary sidebar
+      left: rect.right
     });
   };
 
@@ -137,11 +140,10 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
   };
 
   const handleSettingsMenuLeave = () => {
-    // Instead of closing immediately, set a timeout to allow the user to move to the floating menu
     hoverTimeoutRef.current = setTimeout(() => {
         setHoveredSettingsMenu(null);
         setHoveredMenuPosition(null);
-    }, 300); // 300ms grace period
+    }, 300);
   };
 
   const navItems = [
@@ -151,7 +153,7 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
 
   const handlePrimaryNavigate = (path: string) => {
     navigate(path);
-    if (isSettingsOpen) {
+    if (isSettingsOpen && window.innerWidth < 768) {
        closeSettings();
     }
   };
@@ -164,7 +166,6 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
   const showContent = !isSettingsOpen || (isSettingsOpen && isSettingsPath);
   const showToggleStrip = isSettingsOpen || isSettingsPath;
 
-  // Shared Logic for Sidebar Item Styles (Primary and Secondary)
   const getSidebarItemStyle = (isActive: boolean) => ({
     backgroundColor: isActive ? 
         (currentTheme.isDark || ['#000000', '#09090b', '#18181b'].includes(currentTheme.colors.sidebar) ? 'rgba(255,255,255,0.12)' : `${currentTheme.colors.primary}15`) 
@@ -179,15 +180,27 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
       className="h-screen flex flex-row overflow-hidden transition-colors duration-300"
       style={{ backgroundColor: currentTheme.colors.background }}
     >
-      {/* 1. PRIMARY SIDEBAR (Full Height, Left) */}
+      {/* MOBILE BACKDROP */}
+      {isMobileOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 md:hidden backdrop-blur-sm"
+          onClick={closeMobileSidebar}
+        />
+      )}
+
+      {/* 1. PRIMARY SIDEBAR (Responsive) */}
       <aside 
-        className={`flex-shrink-0 transition-all duration-300 flex flex-col relative z-40 ${isPrimaryCollapsed ? 'w-20' : 'w-full md:w-64'}`}
+        className={`
+          fixed md:relative inset-y-0 left-0 z-50 flex flex-col flex-shrink-0
+          transition-all duration-300 ease-in-out shadow-2xl md:shadow-none
+          ${isMobileOpen ? 'translate-x-0 w-64' : '-translate-x-full md:translate-x-0'}
+          ${isPrimaryCollapsed ? 'md:w-20' : 'md:w-64'}
+        `}
         style={{ 
           backgroundColor: currentTheme.colors.sidebar, 
           color: currentTheme.colors.sidebarText,
         }}
       >
-        {/* Physical Border Line (Right) - Using opacity for subtle look on dark sidebars */}
         <div 
           className="absolute right-0 top-0 bottom-0 w-[1px] z-50"
           style={{ 
@@ -196,7 +209,7 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
           }}
         />
 
-        {/* Toggle Button */}
+        {/* Toggle Button (Desktop Only) */}
         <button
           onClick={togglePrimarySidebar}
           className="absolute hidden md:flex items-center justify-center h-6 w-6 rounded-lg border border-solid shadow-sm z-50 transition-colors"
@@ -212,11 +225,10 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
           {isPrimaryCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
         </button>
 
-        {/* Logo/Header Area */}
+        {/* Header */}
         <div 
-          className={`h-[81px] p-6 flex items-center transition-all ${isPrimaryCollapsed ? 'justify-center' : 'space-x-3'} relative`}
+          className={`h-[81px] p-6 flex items-center transition-all ${isPrimaryCollapsed ? 'md:justify-center' : 'space-x-3'} relative`}
         >
-          {/* Bottom Border for Header - Subtle opacity */}
           <div 
             className="absolute bottom-0 left-0 right-0 h-[1px]" 
             style={{ 
@@ -226,15 +238,13 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
           />
 
           <HardHat className="h-8 w-8 flex-shrink-0" style={{ color: currentTheme.colors.sidebarText }} />
-          {!isPrimaryCollapsed && (
-            <div className="overflow-hidden whitespace-nowrap">
-              <h1 className="text-xl font-bold tracking-tight">ObraLog</h1>
-              <p className="text-xs opacity-70">Gestão de Obra</p>
-            </div>
-          )}
+          <div className={`overflow-hidden whitespace-nowrap ${(isPrimaryCollapsed && !isMobileOpen) ? 'md:hidden' : 'block'}`}>
+            <h1 className="text-xl font-bold tracking-tight">ObraLog</h1>
+            <p className="text-xs opacity-70">Gestão de Obra</p>
+          </div>
         </div>
 
-        {/* Primary Nav Items */}
+        {/* Nav */}
         <nav className="p-4 space-y-2 flex-1 overflow-y-auto overflow-x-hidden no-scrollbar">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
@@ -244,33 +254,26 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
                 onClick={() => handlePrimaryNavigate(item.path)}
                 onMouseEnter={(e) => handleTooltip(e, item.label, 'primary')}
                 onMouseLeave={handleTooltipLeave}
-                className={`group relative w-full flex items-center ${isPrimaryCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-3 rounded-lg transition-all hover:bg-white/5`}
+                className={`group relative w-full flex items-center ${isPrimaryCollapsed ? 'md:justify-center' : 'space-x-3'} px-4 py-3 rounded-lg transition-all hover:bg-white/5`}
                 style={getSidebarItemStyle(isActive)}
               >
-                <div className={`flex items-center ${isPrimaryCollapsed ? 'justify-center' : 'space-x-3'} w-full`}>
+                <div className={`flex items-center ${isPrimaryCollapsed ? 'md:justify-center' : 'space-x-3'} w-full`}>
                   <item.icon className="h-5 w-5 flex-shrink-0" />
-                  {!isPrimaryCollapsed && <span className="whitespace-nowrap">{item.label}</span>}
+                  <span className={`whitespace-nowrap ${(isPrimaryCollapsed && !isMobileOpen) ? 'md:hidden' : 'block'}`}>{item.label}</span>
                 </div>
               </button>
             );
           })}
 
-          {/* SEPARATOR: Projects */}
           <div className="pt-4 mt-2">
-            {!isPrimaryCollapsed && (
-              <p className="px-4 text-xs font-bold uppercase tracking-wider mb-2 opacity-50">
-                Obras Ativas
-              </p>
-            )}
-            {/* Separator line with opacity */}
-            {isPrimaryCollapsed && (
+            <p className={`px-4 text-xs font-bold uppercase tracking-wider mb-2 opacity-50 ${(isPrimaryCollapsed && !isMobileOpen) ? 'md:hidden' : 'block'}`}>
+              Obras Ativas
+            </p>
+            {isPrimaryCollapsed && !isMobileOpen && (
               <div 
-                className="border-t mx-4 mb-4" 
-                style={{ 
-                  borderColor: currentTheme.colors.sidebarText, 
-                  opacity: 0.12 
-                }}
-              ></div>
+                className="border-t mx-4 mb-4 md:block hidden" 
+                style={{ borderColor: currentTheme.colors.sidebarText, opacity: 0.12 }}
+              />
             )}
             
             <div className="space-y-1">
@@ -282,12 +285,12 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
                     onClick={() => handlePrimaryNavigate(`/admin/obra/${site.id}`)}
                     onMouseEnter={(e) => handleTooltip(e, site.name, 'primary')}
                     onMouseLeave={handleTooltipLeave}
-                    className={`group relative w-full flex items-center ${isPrimaryCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-2 rounded-lg transition-all hover:bg-white/5`}
+                    className={`group relative w-full flex items-center ${isPrimaryCollapsed ? 'md:justify-center' : 'space-x-3'} px-4 py-2 rounded-lg transition-all hover:bg-white/5`}
                     style={getSidebarItemStyle(isActive)}
                   >
-                    <div className={`flex items-center ${isPrimaryCollapsed ? 'justify-center' : 'space-x-3'} w-full`}>
+                    <div className={`flex items-center ${isPrimaryCollapsed ? 'md:justify-center' : 'space-x-3'} w-full`}>
                       <FolderDot className="h-4 w-4 flex-shrink-0" />
-                      {!isPrimaryCollapsed && <span className="whitespace-nowrap text-sm truncate">{site.name}</span>}
+                      <span className={`whitespace-nowrap text-sm truncate ${(isPrimaryCollapsed && !isMobileOpen) ? 'md:hidden' : 'block'}`}>{site.name}</span>
                     </div>
                   </button>
                 );
@@ -296,48 +299,42 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
           </div>
         </nav>
 
-        {/* Generic Settings Link */}
         <div className="p-4 relative">
-          {/* Top Border for Settings - Subtle opacity */}
           <div 
             className="absolute top-0 left-0 right-0 h-[1px]" 
-            style={{ 
-              backgroundColor: currentTheme.colors.sidebarText, 
-              opacity: 0.12 
-            }} 
+            style={{ backgroundColor: currentTheme.colors.sidebarText, opacity: 0.12 }} 
           />
           
           <button
             onClick={() => handlePrimaryNavigate('/admin/settings')}
             onMouseEnter={(e) => handleTooltip(e, 'Aparência', 'primary')}
             onMouseLeave={handleTooltipLeave}
-            className={`group relative w-full flex items-center ${isPrimaryCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-3 rounded-lg transition-all hover:bg-white/5`}
+            className={`group relative w-full flex items-center ${isPrimaryCollapsed ? 'md:justify-center' : 'space-x-3'} px-4 py-3 rounded-lg transition-all hover:bg-white/5`}
             style={getSidebarItemStyle(location.pathname === '/admin/settings')}
           >
-            <div className={`flex items-center ${isPrimaryCollapsed ? 'justify-center' : 'space-x-3'} w-full`}>
+            <div className={`flex items-center ${isPrimaryCollapsed ? 'md:justify-center' : 'space-x-3'} w-full`}>
               <Settings className="h-5 w-5 flex-shrink-0" />
-              {!isPrimaryCollapsed && <span className="whitespace-nowrap">Aparência</span>}
+              <span className={`whitespace-nowrap ${(isPrimaryCollapsed && !isMobileOpen) ? 'md:hidden' : 'block'}`}>Aparência</span>
             </div>
           </button>
         </div>
       </aside>
 
       {/* RIGHT SIDE WRAPPER */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
+      <div className="flex-1 flex flex-col h-full overflow-hidden w-full">
         
-        {/* TOP BAR */}
         <TopBar onToggleSettings={toggleSettingsOpen} isSettingsOpen={isSettingsOpen} />
 
-        {/* CONTENT ROW */}
         <div className="flex-1 flex overflow-hidden relative">
           
-          {/* 2. SECONDARY SIDEBAR (SETTINGS PANEL) */}
+          {/* 2. SECONDARY SIDEBAR (SETTINGS) - Responsive */}
           <aside
-            className={`flex-shrink-0 transition-all duration-300 flex flex-col z-20 relative
-              ${isSettingsOpen ? (isSettingsCollapsed ? 'w-20 overflow-visible' : 'w-64 overflow-y-auto') : 'w-0 overflow-hidden'}
+            className={`
+              flex-shrink-0 transition-all duration-300 flex flex-col z-20 relative
+              ${isSettingsOpen ? (isSettingsCollapsed ? 'md:w-20 overflow-visible' : 'w-full md:w-64 overflow-y-auto') : 'w-0 overflow-hidden'}
+              ${isSettingsOpen ? 'absolute inset-0 md:relative' : ''} 
             `}
             style={{ 
-                // Now strictly uses sidebar background color to match the primary sidebar
                 backgroundColor: currentTheme.colors.sidebar,
                 color: currentTheme.colors.sidebarText,
                 height: '100%',
@@ -346,18 +343,21 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
                 visibility: isSettingsOpen ? 'visible' : 'hidden'
             }}
           >
-            {/* Physical Border Line for Secondary Sidebar */}
             {isSettingsOpen && (
               <div 
-                className="absolute right-0 top-0 bottom-0 w-[1px] z-50"
-                style={{ 
-                   backgroundColor: currentTheme.colors.sidebarText,
-                   opacity: 0.12
-                }}
+                className="absolute right-0 top-0 bottom-0 w-[1px] z-50 hidden md:block"
+                style={{ backgroundColor: currentTheme.colors.sidebarText, opacity: 0.12 }}
               />
             )}
 
-            <div className="h-4"></div>
+            {/* Mobile close button for secondary sidebar */}
+            <div className="md:hidden p-4 flex justify-end">
+                <button onClick={closeSettings} className="p-2 bg-white/10 rounded-full">
+                    <ChevronLeft size={20} />
+                </button>
+            </div>
+
+            <div className="h-4 hidden md:block"></div>
 
             <div className="p-4 space-y-6">
                {SETTINGS_MENUS.map(menu => (
@@ -375,8 +375,7 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
                        {!isSettingsCollapsed && (openMenus[menu.id] ? <ChevronUp size={14} style={{ color: currentTheme.colors.sidebarText, opacity: 0.7 }} /> : <ChevronDown size={14} style={{ color: currentTheme.colors.sidebarText, opacity: 0.7 }} />)}
                     </button>
 
-                    {/* Expanded Mode: Accordion Content */}
-                    {!isSettingsCollapsed && openMenus[menu.id] && (
+                    {(!isSettingsCollapsed || window.innerWidth < 768) && openMenus[menu.id] && (
                       <div className="ml-4 pl-4 border-l border-solid space-y-1" style={{ borderColor: `${currentTheme.colors.sidebarText}33` }}>
                          {menu.items.map(subItem => (
                            <button 
@@ -399,12 +398,11 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
           </aside>
 
           {/* 3. MAIN CONTENT AREA */}
-          <main className="flex-1 relative w-full h-full overflow-hidden flex flex-col">
+          <main className={`flex-1 relative w-full h-full overflow-hidden flex flex-col ${isSettingsOpen ? 'hidden md:flex' : 'flex'}`}>
             
-            {/* TOGGLE STRIP */}
             {showToggleStrip && (
               <div 
-                className="absolute top-0 bottom-0 left-0 z-40 flex items-center justify-start cursor-pointer group"
+                className="absolute top-0 bottom-0 left-0 z-40 hidden md:flex items-center justify-start cursor-pointer group"
                 style={{ width: '12px', marginLeft: '-1px' }}
                 onClick={toggleSettingsCollapse}
                 title={isSettingsCollapsed ? "Expandir Menu" : "Reduzir Menu"}
@@ -417,7 +415,7 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
                   className="relative w-5 h-10 flex items-center justify-center rounded-r-md shadow-sm transition-transform duration-200 group-hover:translate-x-0.5"
                   style={{ 
                     backgroundColor: currentTheme.colors.sidebar,
-                    boxShadow: `0 0 0 1px ${currentTheme.colors.sidebarText}1F`, // Updated to match sidebar border color style
+                    boxShadow: `0 0 0 1px ${currentTheme.colors.sidebarText}1F`,
                     color: currentTheme.colors.sidebarText
                   }}
                 >
@@ -427,7 +425,7 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
             )}
 
             {showContent ? (
-              <div className={`flex-1 overflow-y-auto w-full ${location.pathname.startsWith('/admin/obra/') ? "" : "p-8"} ${showToggleStrip ? 'pl-6' : ''}`}>
+              <div className={`flex-1 overflow-y-auto w-full ${location.pathname.startsWith('/admin/obra/') ? "" : "p-4 sm:p-8"} ${showToggleStrip ? 'md:pl-6' : ''}`}>
                 {children}
               </div>
             ) : (
@@ -458,7 +456,6 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
         </div>
       </div>
 
-      {/* Floating Tooltips for Primary Sidebar */}
       {hoveredTooltip && (
            <div 
              className="fixed px-3 py-1.5 rounded-md text-xs font-medium z-[100] shadow-lg border border-solid animate-in fade-in zoom-in-95 duration-100 whitespace-nowrap pointer-events-none"
@@ -475,20 +472,18 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
            </div>
       )}
 
-      {/* Floating Menu for Secondary Sidebar (Collapsed) */}
       {isSettingsOpen && isSettingsCollapsed && hoveredSettingsMenu && hoveredMenuPosition && (
         <div 
-          className="fixed z-[100] rounded-lg shadow-xl overflow-hidden border animate-in fade-in slide-in-from-left-2 duration-150"
+          className="fixed z-[100] rounded-lg shadow-xl overflow-hidden border animate-in fade-in slide-in-from-left-2 duration-150 hidden md:block"
           style={{ 
             top: hoveredMenuPosition.top,
-            left: hoveredMenuPosition.left + 5, // Offset slightly
+            left: hoveredMenuPosition.left + 5,
             minWidth: '200px',
-            backgroundColor: currentTheme.colors.sidebar, // Match sidebar theme
+            backgroundColor: currentTheme.colors.sidebar,
             borderColor: `${currentTheme.colors.sidebarText}33`,
             boxShadow: '0 4px 20px rgba(0,0,0,0.2)'
           }}
           onMouseEnter={() => {
-             // Keep it open when moving from icon to menu (clear timeout)
              if (hoverTimeoutRef.current) {
                 clearTimeout(hoverTimeoutRef.current);
                 hoverTimeoutRef.current = null;
@@ -497,18 +492,13 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
           }}
           onMouseLeave={handleSettingsMenuLeave}
         >
-           {/* Header */}
            <div 
              className="px-4 py-3 font-semibold border-b flex items-center gap-2" 
-             style={{ 
-                color: currentTheme.colors.sidebarText,
-                borderColor: `${currentTheme.colors.sidebarText}1F`
-             }}
+             style={{ color: currentTheme.colors.sidebarText, borderColor: `${currentTheme.colors.sidebarText}1F` }}
            >
               {SETTINGS_MENUS.find(m => m.id === hoveredSettingsMenu)?.label}
            </div>
            
-           {/* Items */}
            <div className="py-2">
               {SETTINGS_MENUS.find(m => m.id === hoveredSettingsMenu)?.items.map(subItem => (
                  <button

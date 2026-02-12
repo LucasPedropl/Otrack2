@@ -144,7 +144,7 @@ const ObrasPage: React.FC = () => {
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border" style={{ borderColor: currentTheme.colors.border, backgroundColor: currentTheme.colors.card }}>
-          <table className="w-full text-left text-sm border-collapse">
+          <table className="w-full text-left text-sm border-collapse min-w-[500px]">
             <thead>
               <tr className="" style={{ backgroundColor: currentTheme.isDark ? 'rgba(255,255,255,0.05)' : '#e5e7eb' }}>
                 <th className="p-4 font-medium" style={{ color: currentTheme.colors.textSecondary }}>Nome da Obra</th>
@@ -165,7 +165,7 @@ const ObrasPage: React.FC = () => {
                     style={{ backgroundColor: rowBackground }}
                   >
                     <td className="p-4" style={{ color: currentTheme.colors.text }}>
-                      <div className="font-medium text-base">{site.name}</div>
+                      <div className="font-medium text-base whitespace-nowrap">{site.name}</div>
                       <div className="text-xs opacity-50">Criado em {site.createdAt.toLocaleDateString()}</div>
                     </td>
                     <td className="p-4">
@@ -201,7 +201,7 @@ const ObrasPage: React.FC = () => {
           onClick={handleBackdropClick}
         >
           <div 
-            className="w-full max-w-lg rounded-2xl shadow-2xl border relative"
+            className="w-full max-w-lg rounded-2xl shadow-2xl border relative mx-4"
             style={{ 
               backgroundColor: currentTheme.colors.card, 
               borderColor: currentTheme.colors.border 

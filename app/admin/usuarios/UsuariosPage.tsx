@@ -108,7 +108,7 @@ const UsuariosPage: React.FC = () => {
       const newSelection = new Set(selectedIds);
       newSelection.delete(deleteId);
       setSelectedIds(newSelection);
-      fetchData();
+      await fetchData();
       setDeleteId(null);
     } catch (error) {
       console.error("Error deleting user", error);
@@ -199,16 +199,17 @@ const UsuariosPage: React.FC = () => {
 
   const handleBulkDelete = async () => {
     const currentUser = authService.getCurrentUser();
+    const idsToDelete = Array.from(selectedIds) as string[];
     
     // Filter out unsafe deletions (only self)
-    const safeToDeleteIds = (Array.from(selectedIds) as string[]).filter((id) => {
+    const safeToDeleteIds = idsToDelete.filter((id) => {
         const u = users.find(user => user.id === id);
         if (!u) return false;
         if (u.email === currentUser?.email) return false;
         return true;
     });
 
-    if (safeToDeleteIds.length < selectedIds.size) {
+    if (safeToDeleteIds.length < idsToDelete.length) {
         alert("Você selecionou sua própria conta. Ela não será excluída para manter seu acesso.");
     }
 
@@ -220,7 +221,7 @@ const UsuariosPage: React.FC = () => {
     try {
       await Promise.all(safeToDeleteIds.map(id => userService.delete(id)));
       setSelectedIds(new Set());
-      fetchData();
+      await fetchData();
     } catch (error) {
       console.error(error);
       alert("Erro ao excluir alguns itens.");
@@ -295,7 +296,7 @@ const UsuariosPage: React.FC = () => {
 
       <div className="pb-20">
         <div className="overflow-x-auto rounded-xl border" style={{ borderColor: currentTheme.colors.border, backgroundColor: currentTheme.colors.card }}>
-          <table className="w-full text-left text-sm border-collapse">
+          <table className="w-full text-left text-sm border-collapse min-w-[800px]">
             <thead>
               <tr style={{ backgroundColor: currentTheme.isDark ? 'rgba(255,255,255,0.05)' : '#e5e7eb' }}>
                 <th className="p-4 w-10 text-center">
@@ -411,7 +412,7 @@ const UsuariosPage: React.FC = () => {
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-2xl shadow-xl border p-6" style={{ backgroundColor: currentTheme.colors.card, borderColor: currentTheme.colors.border }}>
+          <div className="w-full max-w-lg rounded-2xl shadow-xl border p-6 mx-4" style={{ backgroundColor: currentTheme.colors.card, borderColor: currentTheme.colors.border }}>
              <h2 className="text-lg font-bold mb-4" style={{ color: currentTheme.colors.text }}>
                 {editingId ? 'Editar Usuário' : 'Novo Usuário'}
              </h2>

@@ -101,7 +101,7 @@ const ObraMovements: React.FC = () => {
       {/* Table Content */}
       <div className="pb-20">
         <div className="overflow-x-auto rounded-xl border" style={{ borderColor: currentTheme.colors.border, backgroundColor: currentTheme.colors.card }}>
-          <table className="w-full text-left text-sm border-collapse">
+          <table className="w-full text-left text-sm border-collapse min-w-[700px]">
             <thead>
               <tr style={{ backgroundColor: currentTheme.isDark ? 'rgba(255,255,255,0.05)' : '#e5e7eb' }}>
                 <th className="p-4 font-medium" style={{ color: currentTheme.colors.textSecondary }}>Data</th>

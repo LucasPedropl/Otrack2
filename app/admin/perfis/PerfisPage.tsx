@@ -397,6 +397,9 @@ const PerfisPage: React.FC = () => {
   };
 
   const handleBulkDelete = async () => {
+    const idsToDelete = Array.from(selectedIds);
+    if (idsToDelete.length === 0) return;
+
     // 1. Verify dependencies BEFORE showing confirm or proceeding
     setIsDeletingMultiple(true);
     try {
@@ -404,7 +407,7 @@ const PerfisPage: React.FC = () => {
         const profilesWithUsers: string[] = [];
 
         // Check each selected profile for users
-        selectedIds.forEach((profileId: string) => {
+        idsToDelete.forEach((profileId: string) => {
             const hasUsers = allUsers.some(u => u.profileId === profileId);
             if (hasUsers) {
                 const profileName = profiles.find(p => p.id === profileId)?.name || 'Desconhecido';
@@ -419,14 +422,14 @@ const PerfisPage: React.FC = () => {
         }
 
         // 2. Proceed if safe
-        if (!window.confirm(`Tem certeza que deseja excluir ${selectedIds.size} perfis sem usuários vinculados?`)) {
+        if (!window.confirm(`Tem certeza que deseja excluir ${idsToDelete.length} perfis sem usuários vinculados?`)) {
             setIsDeletingMultiple(false);
             return;
         }
         
-        await Promise.all(Array.from(selectedIds).map((id: string) => accessProfileService.delete(id)));
+        await Promise.all(idsToDelete.map((id: string) => accessProfileService.delete(id)));
         setSelectedIds(new Set());
-        fetchProfiles();
+        await fetchProfiles();
     } catch (error) {
       console.error(error);
       alert("Erro ao excluir alguns itens.");
@@ -495,7 +498,7 @@ const PerfisPage: React.FC = () => {
 
       <div className="pb-20">
         <div className="overflow-x-auto rounded-xl border" style={{ borderColor: currentTheme.colors.border, backgroundColor: currentTheme.colors.card }}>
-          <table className="w-full text-left text-sm border-collapse">
+          <table className="w-full text-left text-sm border-collapse min-w-[500px]">
             <thead>
               <tr style={{ backgroundColor: currentTheme.isDark ? 'rgba(255,255,255,0.05)' : '#e5e7eb' }}>
                 <th className="p-4 w-10 text-center">
