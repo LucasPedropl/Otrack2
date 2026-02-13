@@ -89,6 +89,10 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
   }, []);
 
   useEffect(() => {
+    // CORREÇÃO: Não forçar a abertura automática se estiver em dispositivo móvel
+    // Isso evita o problema de "piscar e reabrir" ao tentar fechar a sidebar no mobile
+    if (window.innerWidth < 768) return;
+
     const autoOpenPaths = SETTINGS_PATHS.filter(path => path !== '/admin/settings');
     const shouldAutoOpen = autoOpenPaths.some(path => location.pathname.startsWith(path));
 
@@ -160,6 +164,10 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
 
   const handleSettingsNavigate = (path: string) => {
     navigate(path);
+    // CORREÇÃO: Fechar sidebar secundária ao navegar no mobile
+    if (window.innerWidth < 768) {
+        closeSettings();
+    }
   };
 
   const isSettingsPath = SETTINGS_PATHS.includes(location.pathname);
