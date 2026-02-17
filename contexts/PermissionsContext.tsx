@@ -18,54 +18,50 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    const loadPermissions = async () => {
-      const user = authService.getCurrentUser();
-      
-      // Fallback for legacy admin (email check) or if user has no profile yet
-      if (user?.role === 'admin' && !user.profileId) {
-        setPermissions(['admin:full']);
-        setIsAdmin(true);
-        setIsLoading(false);
-        return;
-      }
-
-      if (user?.profileId) {
-        try {
-          const profile = await accessProfileService.getById(user.profileId);
-          if (profile) {
-            setPermissions(profile.permissions || []);
-            setIsAdmin(profile.permissions.includes('admin:full'));
+    // Listen to real Firebase Auth changes
+    const unsubscribe = authService.onAuthStateChanged(async (user) => {
+      setIsLoading(true);
+      if (user) {
+        // Fallback for legacy admin (email check) or if user has no profile yet
+        if (user.role === 'admin' && !user.profileId) {
+          setPermissions(['admin:full']);
+          setIsAdmin(true);
+        } else if (user.profileId) {
+          try {
+            const profile = await accessProfileService.getById(user.profileId);
+            if (profile) {
+              setPermissions(profile.permissions || []);
+              setIsAdmin(profile.permissions.includes('admin:full'));
+            } else {
+              setPermissions([]);
+              setIsAdmin(false);
+            }
+          } catch (error) {
+            console.error("Error loading permissions", error);
+            setPermissions([]);
+            setIsAdmin(false);
           }
-        } catch (error) {
-          console.error("Error loading permissions", error);
+        } else {
+          setPermissions([]);
+          setIsAdmin(false);
         }
       } else {
-        // No user or no profile
         setPermissions([]);
+        setIsAdmin(false);
       }
       setIsLoading(false);
-    };
+    });
 
-    loadPermissions();
+    return () => unsubscribe();
   }, []);
 
   const hasPermission = (module: string, action: string) => {
     if (isAdmin) return true;
-    return permissions.includes(`${module}:${action}`) || permissions.includes(`${module}:view`); 
-    // Note: Checking specific action. If checking just access to page, usually 'view'.
-    // Logic: 
-    // - permissions.includes('admin:full') -> Handled by isAdmin state for speed
-    // - permissions.includes('module:action') -> Specific check
-  };
-
-  // Helper strict check (e.g. for buttons)
-  const checkPermission = (module: string, action: string) => {
-    if (permissions.includes('admin:full')) return true;
     return permissions.includes(`${module}:${action}`);
   };
 
   const canAccessAny = (permissionsToCheck: string[]) => {
-    if (permissions.includes('admin:full')) return true;
+    if (isAdmin) return true;
     return permissionsToCheck.some(p => permissions.includes(p));
   };
 
@@ -74,7 +70,7 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       permissions, 
       isLoading, 
       isAdmin, 
-      hasPermission: checkPermission, // Export the strict checker
+      hasPermission,
       canAccessAny 
     }}>
       {children}

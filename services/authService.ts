@@ -1,62 +1,81 @@
-import { db } from '../lib/firebase';
-import { collection, query, where, getDocs, addDoc, serverTimestamp, limit } from 'firebase/firestore';
+import { db, auth } from '../lib/firebase';
+import { 
+  signInWithEmailAndPassword, 
+  signInWithPopup, 
+  GoogleAuthProvider, 
+  signOut, 
+  onAuthStateChanged,
+  User as FirebaseUser 
+} from 'firebase/auth';
+import { 
+  doc, 
+  getDoc, 
+  setDoc, 
+  serverTimestamp 
+} from 'firebase/firestore';
 import { User } from '../types';
 
-const COLLECTION_NAME = 'users';
-const ADMIN_EMAIL = 'pedrolucasmota2005@gmail.com';
+const ADMIN_EMAILS = ['pedrolucasmota2005@gmail.com', 'pedro@gmail.com'];
 
 export const authService = {
   /**
-   * Logs in a user by email.
-   * STRICT WHITELIST IMPLEMENTATION:
-   * Only users already present in the 'users' collection can log in.
-   * Auto-registration is disabled for everyone except the hardcoded ADMIN_EMAIL.
+   * Syncs the Firebase User with our Firestore 'users' collection.
+   * If it's a bootstrap admin and doesn't exist, create it.
    */
-  login: async (email: string): Promise<User> => {
-    const usersRef = collection(db, COLLECTION_NAME);
-    const q = query(usersRef, where("email", "==", email), limit(1));
-    const querySnapshot = await getDocs(q);
+  syncUser: async (firebaseUser: FirebaseUser): Promise<User> => {
+    const userDocRef = doc(db, 'users', firebaseUser.uid);
+    const userDocSnap = await getDoc(userDocRef);
 
-    if (!querySnapshot.empty) {
-      // User exists in whitelist -> Allow Access
-      const doc = querySnapshot.docs[0];
-      const data = doc.data();
+    if (userDocSnap.exists()) {
+      const data = userDocSnap.data();
       return {
-        id: doc.id,
+        id: firebaseUser.uid,
+        name: data.name,
         email: data.email,
         role: data.role,
         profileId: data.profileId,
         createdAt: data.createdAt?.toDate() || new Date(),
       };
     } else {
-      // User does NOT exist.
-      
-      // Fallback: If it is the Super Admin, allow creation (Bootstrapping)
-      // Otherwise: BLOCK ACCESS.
-      if (email === ADMIN_EMAIL) {
+      // If user doesn't exist in Firestore, check if it's a bootstrap admin
+      if (ADMIN_EMAILS.includes(firebaseUser.email || '')) {
         const newUser: Omit<User, 'id'> = {
-          email,
+          name: firebaseUser.displayName || 'Administrador',
+          email: firebaseUser.email!,
           role: 'admin',
           createdAt: new Date(),
         };
 
-        const docRef = await addDoc(usersRef, {
+        await setDoc(userDocRef, {
           ...newUser,
           createdAt: serverTimestamp(),
         });
 
         return {
-          id: docRef.id,
+          id: firebaseUser.uid,
           ...newUser,
         };
       } else {
-        // WHITELIST BLOCK
+        // Not an admin and doesn't exist -> Blocked by whitelist logic
+        await signOut(auth);
         throw new Error("Acesso negado. Seu email não está cadastrado no sistema.");
       }
     }
   },
 
-  logout: () => {
+  loginWithEmail: async (email: string, password: string): Promise<User> => {
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    return await authService.syncUser(userCredential.user);
+  },
+
+  loginWithGoogle: async (): Promise<User> => {
+    const provider = new GoogleAuthProvider();
+    const userCredential = await signInWithPopup(auth, provider);
+    return await authService.syncUser(userCredential.user);
+  },
+
+  logout: async () => {
+    await signOut(auth);
     localStorage.removeItem('obralog_user');
   },
 
@@ -66,5 +85,22 @@ export const authService = {
       return JSON.parse(stored);
     }
     return null;
+  },
+
+  onAuthStateChanged: (callback: (user: User | null) => void) => {
+    return onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        try {
+          const user = await authService.syncUser(firebaseUser);
+          localStorage.setItem('obralog_user', JSON.stringify(user));
+          callback(user);
+        } catch (error) {
+          callback(null);
+        }
+      } else {
+        localStorage.removeItem('obralog_user');
+        callback(null);
+      }
+    });
   }
 };
