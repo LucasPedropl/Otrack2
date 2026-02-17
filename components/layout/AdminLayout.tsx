@@ -5,6 +5,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 import { SidebarProvider, useSidebar } from '../../contexts/SidebarContext';
 import { SettingsProvider, useSettingsSidebar } from '../../contexts/SettingsContext';
+import { usePermissions } from '../../contexts/PermissionsContext';
 import { TopBar } from './TopBar';
 import { constructionService } from '../../services/constructionService';
 
@@ -17,15 +18,16 @@ const SETTINGS_PATHS = [
   '/admin/settings'
 ];
 
-const SETTINGS_MENUS = [
+// Defined outside but filtered inside
+const RAW_SETTINGS_MENUS = [
   {
     id: 'orcamento',
     label: 'Orçamento',
     icon: Calculator,
     items: [
-      { label: 'Insumos', path: '/admin/insumos', icon: FileText },
-      { label: 'Unid. de Medidas', path: '/admin/unidades', icon: Ruler },
-      { label: 'Categorias', path: '/admin/categorias', icon: Tag },
+      { label: 'Insumos', path: '/admin/insumos', icon: FileText, permission: 'orcamento_insumos:view' },
+      { label: 'Unid. de Medidas', path: '/admin/unidades', icon: Ruler, permission: 'orcamento_unidades:view' },
+      { label: 'Categorias', path: '/admin/categorias', icon: Tag, permission: 'orcamento_categorias:view' },
     ]
   },
   {
@@ -33,8 +35,8 @@ const SETTINGS_MENUS = [
     label: 'Acesso ao sistema',
     icon: ShieldCheck,
     items: [
-      { label: 'Perfis de acesso', path: '/admin/perfis', icon: ShieldCheck },
-      { label: 'Usuários', path: '/admin/usuarios', icon: Users },
+      { label: 'Perfis de acesso', path: '/admin/perfis', icon: ShieldCheck, permission: 'acesso_perfis:view' },
+      { label: 'Usuários', path: '/admin/usuarios', icon: Users, permission: 'acesso_usuarios:view' },
     ]
   }
 ];
@@ -43,6 +45,7 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { currentTheme } = useTheme();
+  const { hasPermission, isLoading: isPermissionsLoading } = usePermissions();
   
   // Contexts
   const { 
@@ -76,6 +79,15 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
     acesso: true
   });
 
+  // Calculate filtered settings menus based on permissions
+  const settingsMenus = RAW_SETTINGS_MENUS.map(menu => ({
+    ...menu,
+    items: menu.items.filter(item => hasPermission(item.permission.split(':')[0], 'view'))
+  })).filter(menu => menu.items.length > 0);
+
+  // Check if user has access to ANY settings module
+  const hasSettingsAccess = settingsMenus.length > 0;
+
   useEffect(() => {
     const fetchSites = async () => {
       try {
@@ -89,8 +101,6 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
   }, []);
 
   useEffect(() => {
-    // CORREÇÃO: Não forçar a abertura automática se estiver em dispositivo móvel
-    // Isso evita o problema de "piscar e reabrir" ao tentar fechar a sidebar no mobile
     if (window.innerWidth < 768) return;
 
     const autoOpenPaths = SETTINGS_PATHS.filter(path => path !== '/admin/settings');
@@ -111,7 +121,6 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
   };
 
   const handleTooltip = (e: React.MouseEvent<HTMLElement>, label: string, sidebarType: 'primary') => {
-    // Only show tooltips on desktop when collapsed
     if (window.innerWidth < 768) return;
     if (sidebarType === 'primary' && !isPrimaryCollapsed) return;
 
@@ -150,21 +159,25 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
     }, 300);
   };
 
-  const navItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', path: '/admin/dashboard' },
-    { icon: Building2, label: 'Gerenciar Obras', path: '/admin/obras' },
+  const navItemsRaw = [
+    { icon: LayoutDashboard, label: 'Dashboard', path: '/admin/dashboard', permission: 'dashboard:view' }, // assuming dashboard:view exists implicitly or admin:full
+    { icon: Building2, label: 'Gerenciar Obras', path: '/admin/obras', permission: 'obras:view' },
   ];
+
+  // Since we don't have explicit dashboard permission in the profile editor yet, assume dashboard is always visible or use 'obras:view' as proxy if preferred. 
+  // For now, let's keep dashboard visible to all or assume basic access. 
+  // Let's filter Obras based on permission.
+  const navItems = navItemsRaw.filter(item => {
+      if (item.path === '/admin/dashboard') return true; // Dashboard usually public to logged users
+      return hasPermission(item.permission.split(':')[0], 'view');
+  });
 
   const handlePrimaryNavigate = (path: string) => {
     navigate(path);
     
-    // CORREÇÃO: Lógica para fechar a sidebar de configurações ao navegar para módulos principais
     if (path === '/admin/settings') {
-        // Se clicou explicitamente em "Aparência/Configurações", garante que abra
         if (!isSettingsOpen) openSettings();
     } else {
-        // Se foi para Dashboard, Obras, etc., fecha a sidebar de configurações
-        // para que o conteúdo principal seja exibido corretamente
         if (isSettingsOpen) {
            closeSettings();
         }
@@ -173,7 +186,6 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
 
   const handleSettingsNavigate = (path: string) => {
     navigate(path);
-    // CORREÇÃO: Fechar sidebar secundária ao navegar no mobile
     if (window.innerWidth < 768) {
         closeSettings();
     }
@@ -192,6 +204,8 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
     fontWeight: isActive ? 600 : 400
   });
 
+  if (isPermissionsLoading) return null; // Or a loader
+
   return (
     <div 
       className="h-screen flex flex-row overflow-hidden transition-colors duration-300"
@@ -205,7 +219,7 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
         />
       )}
 
-      {/* 1. PRIMARY SIDEBAR (Responsive) */}
+      {/* 1. PRIMARY SIDEBAR */}
       <aside 
         className={`
           fixed md:relative inset-y-0 left-0 z-50 flex flex-col flex-shrink-0
@@ -220,13 +234,9 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
       >
         <div 
           className="absolute right-0 top-0 bottom-0 w-[1px] z-50"
-          style={{ 
-            backgroundColor: currentTheme.colors.sidebarText, 
-            opacity: 0.12 
-          }}
+          style={{ backgroundColor: currentTheme.colors.sidebarText, opacity: 0.12 }}
         />
 
-        {/* Toggle Button (Desktop Only) */}
         <button
           onClick={togglePrimarySidebar}
           className="absolute hidden md:flex items-center justify-center h-6 w-6 rounded-lg border border-solid shadow-sm z-50 transition-colors"
@@ -243,17 +253,8 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
         </button>
 
         {/* Header */}
-        <div 
-          className={`h-[81px] p-6 flex items-center transition-all ${isPrimaryCollapsed ? 'md:justify-center' : 'space-x-3'} relative`}
-        >
-          <div 
-            className="absolute bottom-0 left-0 right-0 h-[1px]" 
-            style={{ 
-              backgroundColor: currentTheme.colors.sidebarText, 
-              opacity: 0.12 
-            }} 
-          />
-
+        <div className={`h-[81px] p-6 flex items-center transition-all ${isPrimaryCollapsed ? 'md:justify-center' : 'space-x-3'} relative`}>
+          <div className="absolute bottom-0 left-0 right-0 h-[1px]" style={{ backgroundColor: currentTheme.colors.sidebarText, opacity: 0.12 }} />
           <HardHat className="h-8 w-8 flex-shrink-0" style={{ color: currentTheme.colors.sidebarText }} />
           <div className={`overflow-hidden whitespace-nowrap ${(isPrimaryCollapsed && !isMobileOpen) ? 'md:hidden' : 'block'}`}>
             <h1 className="text-xl font-bold tracking-tight">ObraLog</h1>
@@ -296,6 +297,7 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
             <div className="space-y-1">
               {sites.map((site) => {
                 const isActive = location.pathname.startsWith(`/admin/obra/${site.id}`);
+                // TODO: Implement "Allowed Sites" permission check here in future
                 return (
                   <button
                     key={site.id}
@@ -316,15 +318,19 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
           </div>
         </nav>
 
+        {/* Footer (Appearance) - Only allow if user has settings access, or just appearance? 
+            Let's keep appearance available for all users, but maybe specific settings pages are restricted. 
+            However, the main "Settings" button in TopBar is restricted. 
+            If we want consistency, we should probably hide this too if they can't access settings.
+            BUT, user needs to be able to logout (inside settings).
+            Let's keep "Appearance" link but maybe rename it or ensure Settings page handles restricted access gracefully. 
+            Actually, let's keep it visible so they can Logout.
+        */}
         <div className="p-4 relative">
-          <div 
-            className="absolute top-0 left-0 right-0 h-[1px]" 
-            style={{ backgroundColor: currentTheme.colors.sidebarText, opacity: 0.12 }} 
-          />
-          
+          <div className="absolute top-0 left-0 right-0 h-[1px]" style={{ backgroundColor: currentTheme.colors.sidebarText, opacity: 0.12 }} />
           <button
             onClick={() => handlePrimaryNavigate('/admin/settings')}
-            onMouseEnter={(e) => handleTooltip(e, 'Aparência', 'primary')}
+            onMouseEnter={(e) => handleTooltip(e, 'Aparência & Sessão', 'primary')}
             onMouseLeave={handleTooltipLeave}
             className={`group relative w-full flex items-center ${isPrimaryCollapsed ? 'md:justify-center' : 'space-x-3'} px-4 py-3 rounded-lg transition-all hover:bg-white/5`}
             style={getSidebarItemStyle(location.pathname === '/admin/settings')}
@@ -340,11 +346,12 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
       {/* RIGHT SIDE WRAPPER */}
       <div className="flex-1 flex flex-col h-full overflow-hidden w-full">
         
-        <TopBar onToggleSettings={toggleSettingsOpen} isSettingsOpen={isSettingsOpen} />
+        {/* Pass hasSettingsAccess to TopBar to control the gear icon */}
+        <TopBar onToggleSettings={toggleSettingsOpen} isSettingsOpen={isSettingsOpen} hasSettingsAccess={hasSettingsAccess} />
 
         <div className="flex-1 flex overflow-hidden relative">
           
-          {/* 2. SECONDARY SIDEBAR (SETTINGS) - Responsive */}
+          {/* 2. SECONDARY SIDEBAR (SETTINGS) */}
           <aside
             className={`
               flex-shrink-0 transition-all duration-300 flex flex-col z-20 relative
@@ -367,7 +374,6 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
               />
             )}
 
-            {/* Mobile close button for secondary sidebar */}
             <div className="md:hidden p-4 flex justify-end">
                 <button onClick={closeSettings} className="p-2 bg-white/10 rounded-full">
                     <ChevronLeft size={20} />
@@ -376,8 +382,9 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
 
             <div className="h-4 hidden md:block"></div>
 
+            {/* Filtered Settings Menus */}
             <div className="p-4 space-y-6">
-               {SETTINGS_MENUS.map(menu => (
+               {settingsMenus.map(menu => (
                  <div key={menu.id} className="relative">
                     <button 
                       onClick={() => !isSettingsCollapsed && toggleMenu(menu.id)}
@@ -411,6 +418,13 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
                     )}
                  </div>
                ))}
+               
+               {/* Show message if no settings modules are available but panel is open (e.g. forced via mobile) */}
+               {settingsMenus.length === 0 && (
+                   <div className="text-center p-4 text-sm opacity-50">
+                       Nenhum módulo de configuração disponível para seu perfil.
+                   </div>
+               )}
             </div>
           </aside>
 
@@ -447,10 +461,7 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-center p-8 animate-fadeIn">
-                <div 
-                  className="p-6 rounded-full mb-6"
-                  style={{ backgroundColor: `${currentTheme.colors.primary}10` }}
-                >
+                <div className="p-6 rounded-full mb-6" style={{ backgroundColor: `${currentTheme.colors.primary}10` }}>
                   <Settings size={48} style={{ color: currentTheme.colors.primary, opacity: 0.5 }} />
                 </div>
                 <h2 className="text-2xl font-bold mb-2" style={{ color: currentTheme.colors.text }}>
@@ -473,22 +484,7 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
         </div>
       </div>
 
-      {hoveredTooltip && (
-           <div 
-             className="fixed px-3 py-1.5 rounded-md text-xs font-medium z-[100] shadow-lg border border-solid animate-in fade-in zoom-in-95 duration-100 whitespace-nowrap pointer-events-none"
-             style={{ 
-               top: hoveredTooltip.top,
-               left: hoveredTooltip.left,
-               transform: 'translateY(-50%)',
-               backgroundColor: currentTheme.colors.card,
-               color: currentTheme.colors.text,
-               borderColor: currentTheme.colors.border
-             }}
-           >
-             {hoveredTooltip.label}
-           </div>
-      )}
-
+      {/* Floating Menu logic - filtering applied */}
       {isSettingsOpen && isSettingsCollapsed && hoveredSettingsMenu && hoveredMenuPosition && (
         <div 
           className="fixed z-[100] rounded-lg shadow-xl overflow-hidden border animate-in fade-in slide-in-from-left-2 duration-150 hidden md:block"
@@ -509,15 +505,12 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
           }}
           onMouseLeave={handleSettingsMenuLeave}
         >
-           <div 
-             className="px-4 py-3 font-semibold border-b flex items-center gap-2" 
-             style={{ color: currentTheme.colors.sidebarText, borderColor: `${currentTheme.colors.sidebarText}1F` }}
-           >
-              {SETTINGS_MENUS.find(m => m.id === hoveredSettingsMenu)?.label}
+           <div className="px-4 py-3 font-semibold border-b flex items-center gap-2" style={{ color: currentTheme.colors.sidebarText, borderColor: `${currentTheme.colors.sidebarText}1F` }}>
+              {settingsMenus.find(m => m.id === hoveredSettingsMenu)?.label}
            </div>
            
            <div className="py-2">
-              {SETTINGS_MENUS.find(m => m.id === hoveredSettingsMenu)?.items.map(subItem => (
+              {settingsMenus.find(m => m.id === hoveredSettingsMenu)?.items.map(subItem => (
                  <button
                     key={subItem.path}
                     onClick={() => {

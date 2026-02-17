@@ -1,0 +1,105 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- FUNÇÕES AUXILIARES ---
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Email mestre (Backdoor para configuração inicial)
+    function isBootstrapAdmin() {
+      return request.auth.token.email == 'pedrolucasmota2005@gmail.com';
+    }
+
+    // Auxiliar para pegar dados do usuário (expressão pura)
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Auxiliar para pegar dados do perfil (expressão pura)
+    function getProfileData(profileId) {
+      return get(/databases/$(database)/documents/access_profiles/$(profileId)).data;
+    }
+
+    // Verifica permissão.
+    // Lógica: É admin mestre? OU (Está logado E existe usuário E existe perfil E tem permissão no perfil)
+    function hasPermission(requiredPermission) {
+      return isBootstrapAdmin() || (
+        isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        getUserData().profileId != null &&
+        exists(/databases/$(database)/documents/access_profiles/$(getUserData().profileId)) &&
+        (
+          'admin:full' in getProfileData(getUserData().profileId).permissions || 
+          requiredPermission in getProfileData(getUserData().profileId).permissions
+        )
+      );
+    }
+
+    function canView(module) {
+      return hasPermission(module + ':view');
+    }
+
+    function canWrite(module) {
+      return hasPermission(module + ':create');
+    }
+
+    function canDelete(module) {
+      return hasPermission(module + ':delete');
+    }
+
+    // --- REGRAS POR COLEÇÃO ---
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      // Permite criar se for admin OU se for o próprio usuário se registrando (necessário para o primeiro login)
+      allow write: if isAuthenticated() && (
+        isBootstrapAdmin() ||
+        hasPermission('acesso_usuarios:create') || 
+        request.auth.uid == userId
+      );
+    }
+
+    match /access_profiles/{profileId} {
+      allow read: if isAuthenticated(); 
+      allow write: if isAuthenticated() && hasPermission('acesso_perfis:create');
+      allow delete: if isAuthenticated() && hasPermission('acesso_perfis:delete');
+    }
+
+    match /inventory/{itemId} {
+      allow read: if isAuthenticated() && canView('orcamento_insumos');
+      allow create, update: if isAuthenticated() && canWrite('orcamento_insumos');
+      allow delete: if isAuthenticated() && canDelete('orcamento_insumos');
+    }
+
+    match /measurement_units/{unitId} {
+      allow read: if isAuthenticated() && canView('orcamento_unidades');
+      allow write: if isAuthenticated() && canWrite('orcamento_unidades');
+      allow delete: if isAuthenticated() && canDelete('orcamento_unidades');
+    }
+
+    match /item_categories/{catId} {
+      allow read: if isAuthenticated() && canView('orcamento_categorias');
+      allow write: if isAuthenticated() && canWrite('orcamento_categorias');
+      allow delete: if isAuthenticated() && canDelete('orcamento_categorias');
+    }
+
+    match /construction_sites/{siteId} {
+      allow read: if isAuthenticated() && canView('obras'); 
+      allow create, update: if isAuthenticated() && canWrite('obras');
+      allow delete: if isAuthenticated() && canDelete('obras');
+
+      match /inventory/{siteItemId} {
+        allow read: if isAuthenticated() && canView('obras');
+        allow write: if isAuthenticated() && canWrite('obras');
+        
+        match /movements/{movId} {
+           allow read: if isAuthenticated() && canView('obras');
+           allow create: if isAuthenticated();
+        }
+      }
+    }
+  }
+}

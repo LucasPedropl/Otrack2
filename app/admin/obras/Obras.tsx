@@ -5,9 +5,11 @@ import { ConstructionSite } from '../../../types';
 import { Plus, Search, Building2, Edit, Trash2, X, LayoutList, LayoutGrid, FolderDot, Calendar } from 'lucide-react';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { Button } from '../../../components/ui/Button';
+import { usePermissions } from '../../../contexts/PermissionsContext';
 
 const ObrasPage: React.FC = () => {
   const { currentTheme } = useTheme();
+  const { hasPermission } = usePermissions();
   const navigate = useNavigate();
   
   const [sites, setSites] = useState<ConstructionSite[]>([]);
@@ -162,17 +164,19 @@ const ObrasPage: React.FC = () => {
           </div>
         </div>
 
-        <Button 
-          onClick={() => {
-            setName('');
-            setEditingId(null);
-            setIsModalOpen(true);
-          }}
-          style={{ backgroundColor: currentTheme.colors.primary, color: '#fff' }}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Nova Obra
-        </Button>
+        {hasPermission('obras', 'create') && (
+          <Button 
+            onClick={() => {
+              setName('');
+              setEditingId(null);
+              setIsModalOpen(true);
+            }}
+            style={{ backgroundColor: currentTheme.colors.primary, color: '#fff' }}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Nova Obra
+          </Button>
+        )}
       </div>
 
       {/* Content Area */}
@@ -221,20 +225,24 @@ const ObrasPage: React.FC = () => {
                         </td>
                         <td className="p-4">
                           <div className="flex items-center justify-center space-x-2">
-                              <button 
-                                onClick={(e) => handleEdit(e, site)}
-                                className="p-1.5 rounded hover:bg-blue-500/10 text-blue-500 transition-colors"
-                                title="Editar"
-                              >
-                                <Edit size={18} />
-                              </button>
-                              <button 
-                                onClick={(e) => handleDelete(e, site.id!)}
-                                className="p-1.5 rounded hover:bg-red-500/10 text-red-500 transition-colors"
-                                title="Excluir"
-                              >
-                                <Trash2 size={18} />
-                              </button>
+                              {hasPermission('obras', 'create') && (
+                                <button 
+                                  onClick={(e) => handleEdit(e, site)}
+                                  className="p-1.5 rounded hover:bg-blue-500/10 text-blue-500 transition-colors"
+                                  title="Editar"
+                                >
+                                  <Edit size={18} />
+                                </button>
+                              )}
+                              {hasPermission('obras', 'delete') && (
+                                <button 
+                                  onClick={(e) => handleDelete(e, site.id!)}
+                                  className="p-1.5 rounded hover:bg-red-500/10 text-red-500 transition-colors"
+                                  title="Excluir"
+                                >
+                                  <Trash2 size={18} />
+                                </button>
+                              )}
                           </div>
                         </td>
                       </tr>
@@ -258,20 +266,24 @@ const ObrasPage: React.FC = () => {
                  >
                     {/* Actions (Absolute) */}
                     <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button 
-                          onClick={(e) => handleEdit(e, site)}
-                          className="p-1.5 rounded bg-blue-500 text-white hover:bg-blue-600 transition-colors shadow-sm"
-                          title="Editar"
-                        >
-                          <Edit size={14} />
-                        </button>
-                        <button 
-                          onClick={(e) => handleDelete(e, site.id!)}
-                          className="p-1.5 rounded bg-red-500 text-white hover:bg-red-600 transition-colors shadow-sm"
-                          title="Excluir"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        {hasPermission('obras', 'create') && (
+                          <button 
+                            onClick={(e) => handleEdit(e, site)}
+                            className="p-1.5 rounded bg-blue-500 text-white hover:bg-blue-600 transition-colors shadow-sm"
+                            title="Editar"
+                          >
+                            <Edit size={14} />
+                          </button>
+                        )}
+                        {hasPermission('obras', 'delete') && (
+                          <button 
+                            onClick={(e) => handleDelete(e, site.id!)}
+                            className="p-1.5 rounded bg-red-500 text-white hover:bg-red-600 transition-colors shadow-sm"
+                            title="Excluir"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                     </div>
 
                     <div className="flex items-center gap-4 mb-4">

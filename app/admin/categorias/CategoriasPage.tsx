@@ -1,13 +1,15 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { settingsService } from '../../../services/settingsService';
 import { ItemCategory } from '../../../types';
-import { Plus, Search, Tag, Trash2, Edit, AlertTriangle } from 'lucide-react';
+import { Plus, Search, Tag, Trash2, Edit, AlertTriangle, X } from 'lucide-react';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { Button } from '../../../components/ui/Button';
 import { BottomActionsBar } from '../../../components/layout/BottomActionsBar';
+import { usePermissions } from '../../../contexts/PermissionsContext';
 
 const CategoriasPage: React.FC = () => {
   const { currentTheme } = useTheme();
+  const { hasPermission } = usePermissions();
   const [categories, setCategories] = useState<ItemCategory[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -16,6 +18,8 @@ const CategoriasPage: React.FC = () => {
   // Selection State
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDeletingMultiple, setIsDeletingMultiple] = useState(false);
+  // NEW: Bulk Delete Modal State
+  const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
 
   // Deletion State
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -206,17 +210,23 @@ const CategoriasPage: React.FC = () => {
     setSelectedIds(newSelection);
   };
 
-  const handleBulkDelete = async () => {
-    const idsToDelete = Array.from(selectedIds) as string[];
-    if (idsToDelete.length === 0) return;
+  // Opens the modal instead of using window.confirm directly
+  const handleBulkDeleteClick = () => {
+    if (selectedIds.size > 0) {
+        setIsBulkDeleteModalOpen(true);
+    }
+  };
 
-    if (!window.confirm(`Tem certeza que deseja excluir ${idsToDelete.length} itens?`)) return;
+  // Actually performs the deletion
+  const confirmBulkDelete = async () => {
+    const idsToDelete = Array.from(selectedIds) as string[];
     
     setIsDeletingMultiple(true);
     try {
       await Promise.all(idsToDelete.map(id => settingsService.deleteCategory(id)));
       setSelectedIds(new Set());
       await fetchCategories();
+      setIsBulkDeleteModalOpen(false);
     } catch (error) {
       console.error(error);
       alert("Erro ao excluir alguns itens.");
@@ -271,17 +281,19 @@ const CategoriasPage: React.FC = () => {
           </div>
         </div>
 
-        <Button 
-          onClick={() => {
-            setFormData({ type: 'Produto', category: '', subcategory: '', registrationType: 'Padrão' });
-            setEditingId(null);
-            setIsModalOpen(true);
-          }}
-          style={{ backgroundColor: currentTheme.colors.primary, color: '#fff' }}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Nova Categoria
-        </Button>
+        {hasPermission('orcamento_categorias', 'create') && (
+          <Button 
+            onClick={() => {
+              setFormData({ type: 'Produto', category: '', subcategory: '', registrationType: 'Padrão' });
+              setEditingId(null);
+              setIsModalOpen(true);
+            }}
+            style={{ backgroundColor: currentTheme.colors.primary, color: '#fff' }}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Nova Categoria
+          </Button>
+        )}
       </div>
 
       <div className="pb-20">
@@ -343,20 +355,24 @@ const CategoriasPage: React.FC = () => {
                         <td className="p-4" style={{ color: currentTheme.colors.text }}>{item.registrationType}</td>
                         <td className="p-4 text-center">
                         <div className="flex items-center justify-center space-x-2">
-                            <button 
-                            onClick={() => handleEdit(item)}
-                            className="p-1.5 rounded hover:bg-blue-500/10 text-blue-500 transition-colors"
-                            title="Editar"
-                            >
-                            <Edit size={16} />
-                            </button>
-                            <button 
-                            onClick={() => handleDeleteClick(item.id!)}
-                            className="p-1.5 rounded hover:bg-red-500/10 text-red-500 transition-colors"
-                            title="Excluir"
-                            >
-                            <Trash2 size={16} />
-                            </button>
+                            {hasPermission('orcamento_categorias', 'create') && (
+                              <button 
+                                onClick={() => handleEdit(item)}
+                                className="p-1.5 rounded hover:bg-blue-500/10 text-blue-500 transition-colors"
+                                title="Editar"
+                              >
+                                <Edit size={16} />
+                              </button>
+                            )}
+                            {hasPermission('orcamento_categorias', 'delete') && (
+                              <button 
+                                onClick={() => handleDeleteClick(item.id!)}
+                                className="p-1.5 rounded hover:bg-red-500/10 text-red-500 transition-colors"
+                                title="Excluir"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
                         </div>
                         </td>
                     </tr>
@@ -377,7 +393,7 @@ const CategoriasPage: React.FC = () => {
         onExport={handleExport}
         isImporting={isLoading}
         selectedCount={selectedIds.size}
-        onDeleteSelected={handleBulkDelete}
+        onDeleteSelected={hasPermission('orcamento_categorias', 'delete') ? handleBulkDeleteClick : undefined}
         onCancelSelection={() => setSelectedIds(new Set())}
         isDeleting={isDeletingMultiple}
       />
@@ -446,7 +462,7 @@ const CategoriasPage: React.FC = () => {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete Confirmation Modal (Single) */}
       {deleteId && (
         <div 
           className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
@@ -484,6 +500,52 @@ const CategoriasPage: React.FC = () => {
                 className="w-full"
               >
                 Excluir
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NEW: Bulk Delete Confirmation Modal */}
+      {isBulkDeleteModalOpen && (
+        <div 
+          className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          onClick={() => setIsBulkDeleteModalOpen(false)}
+        >
+          <div 
+            className="w-full max-w-sm rounded-xl shadow-2xl border p-6 text-center animate-in zoom-in-95 duration-200"
+            style={{ 
+              backgroundColor: currentTheme.colors.card, 
+              borderColor: currentTheme.colors.border 
+            }} 
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-4">
+              <Trash2 className="h-6 w-6 text-red-600" />
+            </div>
+            
+            <h3 className="text-lg font-bold mb-2" style={{ color: currentTheme.colors.text }}>Exclusão em Massa</h3>
+            <p className="text-sm mb-6 opacity-80" style={{ color: currentTheme.colors.textSecondary }}>
+              Tem certeza que deseja excluir <b>{selectedIds.size}</b> itens selecionados? 
+              <br/>
+              <span className="text-xs text-red-500 mt-1 block">Esta ação é irreversível.</span>
+            </p>
+
+            <div className="flex gap-3 justify-center">
+              <Button 
+                variant="secondary" 
+                onClick={() => setIsBulkDeleteModalOpen(false)}
+                className="w-full"
+              >
+                Cancelar
+              </Button>
+              <Button 
+                variant="danger" 
+                onClick={confirmBulkDelete}
+                isLoading={isDeletingMultiple}
+                className="w-full"
+              >
+                Sim, Excluir Tudo
               </Button>
             </div>
           </div>

@@ -7,6 +7,7 @@ import { Plus, Search, ShieldCheck, Trash2, Edit, ChevronDown, ChevronRight, Sav
 import { useTheme } from '../../../contexts/ThemeContext';
 import { Button } from '../../../components/ui/Button';
 import { BottomActionsBar } from '../../../components/layout/BottomActionsBar';
+import { usePermissions } from '../../../contexts/PermissionsContext';
 
 // --- CONFIGURAÇÃO DOS MÓDULOS ---
 
@@ -71,6 +72,7 @@ const MODULE_GROUPS: ModuleGroup[] = [
 
 const PerfisPage: React.FC = () => {
   const { currentTheme } = useTheme();
+  const { hasPermission } = usePermissions();
   const [profiles, setProfiles] = useState<AccessProfile[]>([]);
   const [availableSites, setAvailableSites] = useState<ConstructionSite[]>([]);
   
@@ -81,6 +83,8 @@ const PerfisPage: React.FC = () => {
   // Selection State
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDeletingMultiple, setIsDeletingMultiple] = useState(false);
+  // NEW: Bulk Delete Modal State
+  const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
 
   // Deletion State (Advanced)
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -128,8 +132,6 @@ const PerfisPage: React.FC = () => {
 
   // --- Logic Helpers ---
 
-  // NOTE: Previous "isAdmin" check removed to allow editing all profiles.
-
   const toggleModuleExpand = (moduleId: string) => {
     const newExpanded = new Set(expandedModules);
     if (newExpanded.has(moduleId)) {
@@ -150,7 +152,7 @@ const PerfisPage: React.FC = () => {
     return actions.every(action => permissions.has(`${module}:${action.id}`));
   };
 
-  const hasPermission = (module: string, action: string) => {
+  const checkFormPermission = (module: string, action: string) => {
     return permissions.has(`${module}:${action}`) || permissions.has('admin:full');
   };
 
@@ -396,7 +398,8 @@ const PerfisPage: React.FC = () => {
     }
   };
 
-  const handleBulkDelete = async () => {
+  // Opens the modal instead of using window.confirm directly (after checks)
+  const handleBulkDeleteClick = async () => {
     const idsToDelete = Array.from(selectedIds);
     if (idsToDelete.length === 0) return;
 
@@ -421,15 +424,26 @@ const PerfisPage: React.FC = () => {
             return;
         }
 
-        // 2. Proceed if safe
-        if (!window.confirm(`Tem certeza que deseja excluir ${idsToDelete.length} perfis sem usuários vinculados?`)) {
-            setIsDeletingMultiple(false);
-            return;
-        }
-        
-        await Promise.all(idsToDelete.map((id: string) => accessProfileService.delete(id)));
-        setSelectedIds(new Set());
-        await fetchProfiles();
+        // 2. Proceed if safe - Open Modal
+        setIsBulkDeleteModalOpen(true);
+        setIsDeletingMultiple(false); // Reset loading state, modal will handle next loading
+    } catch (error) {
+      console.error(error);
+      alert("Erro ao verificar dependências.");
+      setIsDeletingMultiple(false);
+    }
+  };
+
+  // Actually performs the deletion
+  const confirmBulkDelete = async () => {
+    const idsToDelete = Array.from(selectedIds);
+    
+    setIsDeletingMultiple(true);
+    try {
+      await Promise.all(idsToDelete.map((id: string) => accessProfileService.delete(id)));
+      setSelectedIds(new Set());
+      await fetchProfiles();
+      setIsBulkDeleteModalOpen(false);
     } catch (error) {
       console.error(error);
       alert("Erro ao excluir alguns itens.");
@@ -478,22 +492,24 @@ const PerfisPage: React.FC = () => {
           </div>
         </div>
 
-        <Button 
-          onClick={() => {
-            setName('');
-            setPermissions(new Set());
-            setEditingId(null);
-            setAccessAllSites(true);
-            setAllowedSites(new Set());
-            setIsModalOpen(true);
-            // Default expand groups
-            setExpandedModules(new Set(MODULE_GROUPS.flatMap(g => g.modules.map(m => m.id))));
-          }}
-          style={{ backgroundColor: currentTheme.colors.primary, color: '#fff' }}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Novo Perfil
-        </Button>
+        {hasPermission('acesso_perfis', 'create') && (
+          <Button 
+            onClick={() => {
+              setName('');
+              setPermissions(new Set());
+              setEditingId(null);
+              setAccessAllSites(true);
+              setAllowedSites(new Set());
+              setIsModalOpen(true);
+              // Default expand groups
+              setExpandedModules(new Set(MODULE_GROUPS.flatMap(g => g.modules.map(m => m.id))));
+            }}
+            style={{ backgroundColor: currentTheme.colors.primary, color: '#fff' }}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Novo Perfil
+          </Button>
+        )}
       </div>
 
       <div className="pb-20">
@@ -557,20 +573,24 @@ const PerfisPage: React.FC = () => {
                         </td>
                         <td className="p-4 text-center">
                         <div className="flex items-center justify-center space-x-2">
-                            <button 
-                                onClick={() => handleEdit(item)}
-                                className="p-1.5 rounded transition-colors hover:bg-blue-500/10 text-blue-500"
-                                title="Editar"
-                            >
-                                <Edit size={16} />
-                            </button>
-                            <button 
-                                onClick={() => handleClickDelete(item.id!)}
-                                className="p-1.5 rounded transition-colors hover:bg-red-500/10 text-red-500"
-                                title="Excluir"
-                            >
-                                <Trash2 size={16} />
-                            </button>
+                            {hasPermission('acesso_perfis', 'create') && (
+                              <button 
+                                  onClick={() => handleEdit(item)}
+                                  className="p-1.5 rounded transition-colors hover:bg-blue-500/10 text-blue-500"
+                                  title="Editar"
+                              >
+                                  <Edit size={16} />
+                              </button>
+                            )}
+                            {hasPermission('acesso_perfis', 'delete') && (
+                              <button 
+                                  onClick={() => handleClickDelete(item.id!)}
+                                  className="p-1.5 rounded transition-colors hover:bg-red-500/10 text-red-500"
+                                  title="Excluir"
+                              >
+                                  <Trash2 size={16} />
+                              </button>
+                            )}
                         </div>
                         </td>
                     </tr>
@@ -590,7 +610,7 @@ const PerfisPage: React.FC = () => {
         onImport={() => alert('Importação indisponível para perfis.')}
         onExport={handleExport}
         selectedCount={selectedIds.size}
-        onDeleteSelected={handleBulkDelete}
+        onDeleteSelected={hasPermission('acesso_perfis', 'delete') ? handleBulkDeleteClick : undefined}
         onCancelSelection={() => setSelectedIds(new Set())}
         isDeleting={isDeletingMultiple}
       />
@@ -709,7 +729,7 @@ const PerfisPage: React.FC = () => {
                                                                     <div className="relative flex items-center">
                                                                         <input 
                                                                             type="checkbox"
-                                                                            checked={hasPermission(module.id, action.id)}
+                                                                            checked={checkFormPermission(module.id, action.id)}
                                                                             disabled={!hasAccess} // Must enable module first
                                                                             onChange={(e) => togglePermission(module.id, action.id, e.target.checked)}
                                                                             className="peer h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500 disabled:opacity-50"
@@ -930,6 +950,52 @@ const PerfisPage: React.FC = () => {
                     <Button variant="ghost" onClick={handleCloseDelete}>Cancelar Operação</Button>
                  </div>
              )}
+          </div>
+        </div>
+      )}
+
+      {/* NEW: Bulk Delete Confirmation Modal */}
+      {isBulkDeleteModalOpen && (
+        <div 
+          className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          onClick={() => setIsBulkDeleteModalOpen(false)}
+        >
+          <div 
+            className="w-full max-w-sm rounded-xl shadow-2xl border p-6 text-center animate-in zoom-in-95 duration-200"
+            style={{ 
+              backgroundColor: currentTheme.colors.card, 
+              borderColor: currentTheme.colors.border 
+            }} 
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-4">
+              <Trash2 className="h-6 w-6 text-red-600" />
+            </div>
+            
+            <h3 className="text-lg font-bold mb-2" style={{ color: currentTheme.colors.text }}>Exclusão em Massa</h3>
+            <p className="text-sm mb-6 opacity-80" style={{ color: currentTheme.colors.textSecondary }}>
+              Tem certeza que deseja excluir <b>{selectedIds.size}</b> itens selecionados? 
+              <br/>
+              <span className="text-xs text-red-500 mt-1 block">Esta ação é irreversível.</span>
+            </p>
+
+            <div className="flex gap-3 justify-center">
+              <Button 
+                variant="secondary" 
+                onClick={() => setIsBulkDeleteModalOpen(false)}
+                className="w-full"
+              >
+                Cancelar
+              </Button>
+              <Button 
+                variant="danger" 
+                onClick={confirmBulkDelete}
+                isLoading={isDeletingMultiple}
+                className="w-full"
+              >
+                Sim, Excluir Tudo
+              </Button>
+            </div>
           </div>
         </div>
       )}

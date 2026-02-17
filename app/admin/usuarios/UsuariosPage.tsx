@@ -3,13 +3,15 @@ import { userService } from '../../../services/userService';
 import { accessProfileService } from '../../../services/accessProfileService';
 import { authService } from '../../../services/authService';
 import { User, AccessProfile } from '../../../types';
-import { Plus, Search, Users, Trash2, Edit, Mail, AlertTriangle, ChevronDown, Shield } from 'lucide-react';
+import { Plus, Search, Users, Trash2, Edit, Mail, AlertTriangle, ChevronDown, Shield, X } from 'lucide-react';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { Button } from '../../../components/ui/Button';
 import { BottomActionsBar } from '../../../components/layout/BottomActionsBar';
+import { usePermissions } from '../../../contexts/PermissionsContext';
 
 const UsuariosPage: React.FC = () => {
   const { currentTheme } = useTheme();
+  const { hasPermission } = usePermissions();
   const [users, setUsers] = useState<User[]>([]);
   const [profiles, setProfiles] = useState<AccessProfile[]>([]);
   
@@ -20,6 +22,8 @@ const UsuariosPage: React.FC = () => {
   // Selection State
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDeletingMultiple, setIsDeletingMultiple] = useState(false);
+  // NEW: Bulk Delete Modal State
+  const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
 
   // Deletion State
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -197,7 +201,8 @@ const UsuariosPage: React.FC = () => {
     setSelectedIds(newSelection);
   };
 
-  const handleBulkDelete = async () => {
+  // Opens the modal instead of using window.confirm directly
+  const handleBulkDeleteClick = () => {
     const currentUser = authService.getCurrentUser();
     const idsToDelete = Array.from(selectedIds) as string[];
     
@@ -215,13 +220,34 @@ const UsuariosPage: React.FC = () => {
 
     if (safeToDeleteIds.length === 0) return;
 
-    if (!window.confirm(`Tem certeza que deseja excluir ${safeToDeleteIds.length} usuários?`)) return;
+    // Open modal instead of confirm
+    setIsBulkDeleteModalOpen(true);
+  };
+
+  // Actually performs the deletion
+  const confirmBulkDelete = async () => {
+    const currentUser = authService.getCurrentUser();
+    const idsToDelete = Array.from(selectedIds) as string[];
+    
+    // Recalculate safe items inside valid action
+    const safeToDeleteIds = idsToDelete.filter((id) => {
+        const u = users.find(user => user.id === id);
+        if (!u) return false;
+        if (u.email === currentUser?.email) return false;
+        return true;
+    });
+
+    if (safeToDeleteIds.length === 0) {
+        setIsBulkDeleteModalOpen(false);
+        return;
+    }
     
     setIsDeletingMultiple(true);
     try {
       await Promise.all(safeToDeleteIds.map(id => userService.delete(id)));
       setSelectedIds(new Set());
       await fetchData();
+      setIsBulkDeleteModalOpen(false);
     } catch (error) {
       console.error(error);
       alert("Erro ao excluir alguns itens.");
@@ -280,18 +306,20 @@ const UsuariosPage: React.FC = () => {
           </div>
         </div>
 
-        <Button 
-          onClick={() => {
-            setFormData({ name: '', email: '', role: 'operario', profileId: '' });
-            setProfileSearch('');
-            setEditingId(null);
-            setIsModalOpen(true);
-          }}
-          style={{ backgroundColor: currentTheme.colors.primary, color: '#fff' }}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Novo Usuário
-        </Button>
+        {hasPermission('acesso_usuarios', 'create') && (
+          <Button 
+            onClick={() => {
+              setFormData({ name: '', email: '', role: 'operario', profileId: '' });
+              setProfileSearch('');
+              setEditingId(null);
+              setIsModalOpen(true);
+            }}
+            style={{ backgroundColor: currentTheme.colors.primary, color: '#fff' }}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Novo Usuário
+          </Button>
+        )}
       </div>
 
       <div className="pb-20">
@@ -370,20 +398,24 @@ const UsuariosPage: React.FC = () => {
                         </td>
                         <td className="p-4 text-center">
                         <div className="flex items-center justify-center space-x-2">
-                            <button 
-                                onClick={() => handleEdit(item)}
-                                className="p-1.5 rounded hover:bg-blue-500/10 text-blue-500 transition-colors"
-                                title="Editar"
-                            >
-                                <Edit size={16} />
-                            </button>
-                            <button 
-                                onClick={() => handleDeleteClick(item.id!)}
-                                className="p-1.5 rounded hover:bg-red-500/10 text-red-500 transition-colors"
-                                title="Excluir"
-                            >
-                                <Trash2 size={16} />
-                            </button>
+                            {hasPermission('acesso_usuarios', 'create') && (
+                              <button 
+                                  onClick={() => handleEdit(item)}
+                                  className="p-1.5 rounded hover:bg-blue-500/10 text-blue-500 transition-colors"
+                                  title="Editar"
+                              >
+                                  <Edit size={16} />
+                              </button>
+                            )}
+                            {hasPermission('acesso_usuarios', 'delete') && (
+                              <button 
+                                  onClick={() => handleDeleteClick(item.id!)}
+                                  className="p-1.5 rounded hover:bg-red-500/10 text-red-500 transition-colors"
+                                  title="Excluir"
+                              >
+                                  <Trash2 size={16} />
+                              </button>
+                            )}
                         </div>
                         </td>
                     </tr>
@@ -405,7 +437,7 @@ const UsuariosPage: React.FC = () => {
 
         // Bulk props
         selectedCount={selectedIds.size}
-        onDeleteSelected={handleBulkDelete}
+        onDeleteSelected={hasPermission('acesso_usuarios', 'delete') ? handleBulkDeleteClick : undefined}
         onCancelSelection={() => setSelectedIds(new Set())}
         isDeleting={isDeletingMultiple}
       />
@@ -511,7 +543,7 @@ const UsuariosPage: React.FC = () => {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete Confirmation Modal (Single) */}
       {deleteId && (
         <div 
           className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
@@ -549,6 +581,52 @@ const UsuariosPage: React.FC = () => {
                 className="w-full"
               >
                 Excluir
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NEW: Bulk Delete Confirmation Modal */}
+      {isBulkDeleteModalOpen && (
+        <div 
+          className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          onClick={() => setIsBulkDeleteModalOpen(false)}
+        >
+          <div 
+            className="w-full max-w-sm rounded-xl shadow-2xl border p-6 text-center animate-in zoom-in-95 duration-200"
+            style={{ 
+              backgroundColor: currentTheme.colors.card, 
+              borderColor: currentTheme.colors.border 
+            }} 
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-4">
+              <Trash2 className="h-6 w-6 text-red-600" />
+            </div>
+            
+            <h3 className="text-lg font-bold mb-2" style={{ color: currentTheme.colors.text }}>Exclusão em Massa</h3>
+            <p className="text-sm mb-6 opacity-80" style={{ color: currentTheme.colors.textSecondary }}>
+              Tem certeza que deseja excluir <b>{selectedIds.size}</b> usuários selecionados? 
+              <br/>
+              <span className="text-xs text-red-500 mt-1 block">Esta ação é irreversível.</span>
+            </p>
+
+            <div className="flex gap-3 justify-center">
+              <Button 
+                variant="secondary" 
+                onClick={() => setIsBulkDeleteModalOpen(false)}
+                className="w-full"
+              >
+                Cancelar
+              </Button>
+              <Button 
+                variant="danger" 
+                onClick={confirmBulkDelete}
+                isLoading={isDeletingMultiple}
+                className="w-full"
+              >
+                Sim, Excluir Tudo
               </Button>
             </div>
           </div>

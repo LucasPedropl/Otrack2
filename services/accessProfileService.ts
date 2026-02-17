@@ -1,5 +1,5 @@
 import { db } from '../lib/firebase';
-import { collection, getDocs, addDoc, doc, deleteDoc, updateDoc, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, addDoc, doc, deleteDoc, updateDoc, query, orderBy, getDoc } from 'firebase/firestore';
 import { AccessProfile } from '../types';
 
 const COLLECTION_NAME = 'access_profiles';
@@ -14,6 +14,19 @@ export const accessProfileService = {
       id: doc.id,
       ...doc.data()
     } as AccessProfile));
+  },
+
+  getById: async (id: string): Promise<AccessProfile | null> => {
+    const ref = doc(db, COLLECTION_NAME, id);
+    const snap = await getDoc(ref);
+    
+    if (snap.exists()) {
+      return {
+        id: snap.id,
+        ...snap.data()
+      } as AccessProfile;
+    }
+    return null;
   },
 
   add: async (profile: Omit<AccessProfile, 'id'>) => {

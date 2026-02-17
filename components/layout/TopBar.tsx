@@ -6,9 +6,10 @@ import { Search, Settings, Menu } from 'lucide-react';
 interface TopBarProps {
   onToggleSettings: () => void;
   isSettingsOpen: boolean;
+  hasSettingsAccess?: boolean; // New prop to control visibility
 }
 
-export const TopBar: React.FC<TopBarProps> = ({ onToggleSettings, isSettingsOpen }) => {
+export const TopBar: React.FC<TopBarProps> = ({ onToggleSettings, isSettingsOpen, hasSettingsAccess = true }) => {
   const { currentTheme } = useTheme();
   const { toggleMobileSidebar } = useSidebar();
 
@@ -57,21 +58,23 @@ export const TopBar: React.FC<TopBarProps> = ({ onToggleSettings, isSettingsOpen
             />
          </div>
 
-         {/* Settings Button */}
-         <button 
-           onClick={onToggleSettings}
-           className={`p-2 rounded-lg transition-all hover:bg-white/10`}
-           style={{ 
-             backgroundColor: isSettingsOpen ? currentTheme.colors.primary : 'transparent',
-             border: `1px solid ${isSettingsOpen ? currentTheme.colors.primary : currentTheme.colors.sidebarText}`,
-             borderColor: isSettingsOpen ? currentTheme.colors.primary : currentTheme.colors.sidebarText,
-             color: isSettingsOpen ? '#fff' : currentTheme.colors.sidebarText,
-             opacity: isSettingsOpen ? 1 : 0.8
-           }}
-           title="Configurações e Cadastros"
-         >
-           <Settings size={20} style={{ opacity: isSettingsOpen ? 1 : 0.8 }} />
-         </button>
+         {/* Settings Button - Only show if has access */}
+         {hasSettingsAccess && (
+           <button 
+             onClick={onToggleSettings}
+             className={`p-2 rounded-lg transition-all hover:bg-white/10`}
+             style={{ 
+               backgroundColor: isSettingsOpen ? currentTheme.colors.primary : 'transparent',
+               border: `1px solid ${isSettingsOpen ? currentTheme.colors.primary : currentTheme.colors.sidebarText}`,
+               borderColor: isSettingsOpen ? currentTheme.colors.primary : currentTheme.colors.sidebarText,
+               color: isSettingsOpen ? '#fff' : currentTheme.colors.sidebarText,
+               opacity: isSettingsOpen ? 1 : 0.8
+             }}
+             title="Configurações e Cadastros"
+           >
+             <Settings size={20} style={{ opacity: isSettingsOpen ? 1 : 0.8 }} />
+           </button>
+         )}
 
          {/* Divider */}
          <div 

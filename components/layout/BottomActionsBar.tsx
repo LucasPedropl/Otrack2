@@ -44,7 +44,7 @@ export const BottomActionsBar: React.FC<BottomActionsBarProps> = ({
   if (selectedCount > 0 && onDeleteSelected && onCancelSelection) {
     return (
       <div 
-        className="absolute bottom-0 left-0 right-0 z-50 transition-all duration-300 transform translate-y-0"
+        className="absolute bottom-0 left-0 right-0 z-[60] transition-all duration-300 transform translate-y-0"
         style={{ 
           backgroundColor: currentTheme.isDark ? '#3f1818' : '#fee2e2', // Light Red / Dark Red bg
           borderTop: `1px solid ${currentTheme.isDark ? '#7f1d1d' : '#fca5a5'}`
@@ -68,6 +68,7 @@ export const BottomActionsBar: React.FC<BottomActionsBarProps> = ({
 
            <div className="flex items-center gap-3">
               <Button 
+                type="button"
                 variant="ghost" 
                 onClick={onCancelSelection}
                 className="hover:bg-red-500/10"
@@ -76,6 +77,7 @@ export const BottomActionsBar: React.FC<BottomActionsBarProps> = ({
                 Cancelar
               </Button>
               <Button 
+                type="button"
                 variant="danger" 
                 onClick={onDeleteSelected}
                 isLoading={isDeleting}
@@ -112,6 +114,7 @@ export const BottomActionsBar: React.FC<BottomActionsBarProps> = ({
         {/* Left: Actions */}
         <div className="flex items-center gap-3 w-full sm:w-auto justify-center sm:justify-start">
           <Button 
+            type="button"
             variant="secondary" 
             onClick={onImport}
             isLoading={isImporting}
@@ -121,6 +124,7 @@ export const BottomActionsBar: React.FC<BottomActionsBarProps> = ({
             Importar
           </Button>
           <Button 
+            type="button"
             variant="secondary"
             onClick={onExport}
             isLoading={isExporting}
@@ -139,6 +143,7 @@ export const BottomActionsBar: React.FC<BottomActionsBarProps> = ({
 
           <div className="flex items-center gap-1">
              <button
+               type="button"
                onClick={() => onPageChange(currentPage - 1)}
                disabled={currentPage === 1 || totalItems === 0}
                className="p-2 rounded-lg border border-solid hover:bg-white/10 hover:opacity-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
@@ -156,6 +161,7 @@ export const BottomActionsBar: React.FC<BottomActionsBarProps> = ({
              </div>
 
              <button
+               type="button"
                onClick={() => onPageChange(currentPage + 1)}
                disabled={currentPage === totalPages || totalItems === 0}
                className="p-2 rounded-lg border border-solid hover:bg-white/10 hover:opacity-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all"

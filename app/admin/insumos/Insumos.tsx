@@ -6,6 +6,7 @@ import { Plus, Search, Package, Info, LayoutList, LayoutGrid, Edit, Trash2, X, A
 import { useTheme } from '../../../contexts/ThemeContext';
 import { Button } from '../../../components/ui/Button';
 import { BottomActionsBar } from '../../../components/layout/BottomActionsBar';
+import { usePermissions } from '../../../contexts/PermissionsContext';
 
 // Options Constants
 const COST_TYPES = [
@@ -19,6 +20,7 @@ const COST_TYPES = [
 
 const InsumosPage: React.FC = () => {
   const { currentTheme } = useTheme();
+  const { hasPermission } = usePermissions();
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -29,6 +31,8 @@ const InsumosPage: React.FC = () => {
   // Selection State
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDeletingMultiple, setIsDeletingMultiple] = useState(false);
+  // NEW: Bulk Delete Modal State
+  const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
 
   // Dynamic Options State
   const [availableUnits, setAvailableUnits] = useState<MeasurementUnit[]>([]);
@@ -44,7 +48,7 @@ const InsumosPage: React.FC = () => {
   const costTypeRef = useRef<HTMLDivElement>(null);
   const unitRef = useRef<HTMLDivElement>(null);
 
-  // Delete Modal State
+  // Delete Modal State (Single Item)
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   // Pagination State
@@ -309,18 +313,21 @@ const InsumosPage: React.FC = () => {
   // --- Multi-Selection Handlers ---
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
-      const allIdsOnPage = currentData.map(item => item.id!);
+      const allIdsOnPage = currentData.map(item => item.id!).filter(id => !!id);
       const newSelection = new Set(selectedIds);
       allIdsOnPage.forEach(id => newSelection.add(id));
       setSelectedIds(newSelection);
     } else {
       const newSelection = new Set(selectedIds);
-      currentData.forEach(item => newSelection.delete(item.id!));
+      currentData.forEach(item => {
+        if(item.id) newSelection.delete(item.id);
+      });
       setSelectedIds(newSelection);
     }
   };
 
   const handleSelectOne = (id: string) => {
+    if(!id) return;
     const newSelection = new Set(selectedIds);
     if (newSelection.has(id)) {
       newSelection.delete(id);
@@ -330,17 +337,23 @@ const InsumosPage: React.FC = () => {
     setSelectedIds(newSelection);
   };
 
-  const handleBulkDelete = async () => {
-    const idsToDelete = Array.from(selectedIds) as string[];
-    if (idsToDelete.length === 0) return;
+  // Opens the modal instead of using window.confirm directly
+  const handleBulkDeleteClick = () => {
+    if (selectedIds.size > 0) {
+        setIsBulkDeleteModalOpen(true);
+    }
+  };
 
-    if (!window.confirm(`Tem certeza que deseja excluir ${idsToDelete.length} itens?`)) return;
+  // Actually performs the deletion
+  const confirmBulkDelete = async () => {
+    const idsToDelete = Array.from(selectedIds).filter(id => !!id) as string[];
     
     setIsDeletingMultiple(true);
     try {
       await Promise.all(idsToDelete.map(id => inventoryService.delete(id)));
       setSelectedIds(new Set());
       await fetchData();
+      setIsBulkDeleteModalOpen(false);
     } catch (error) {
       console.error(error);
       alert("Erro ao excluir alguns itens.");
@@ -365,7 +378,7 @@ const InsumosPage: React.FC = () => {
   );
 
   // Check if all on current page are selected
-  const isAllSelected = currentData.length > 0 && currentData.every(item => selectedIds.has(item.id!));
+  const isAllSelected = currentData.length > 0 && currentData.every(item => item.id && selectedIds.has(item.id));
 
   // Dynamic Input Style
   const dynamicInputStyle = { 
@@ -448,17 +461,20 @@ const InsumosPage: React.FC = () => {
           </div>
         </div>
 
-        <Button 
-          onClick={() => {
-            setFormData(initialFormState);
-            setEditingId(null);
-            setIsModalOpen(true);
-          }}
-          style={{ backgroundColor: currentTheme.colors.primary, color: '#fff' }}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Novo Insumo
-        </Button>
+        {/* Create Button - Permission Checked */}
+        {hasPermission('orcamento_insumos', 'create') && (
+          <Button 
+            onClick={() => {
+              setFormData(initialFormState);
+              setEditingId(null);
+              setIsModalOpen(true);
+            }}
+            style={{ backgroundColor: currentTheme.colors.primary, color: '#fff' }}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Novo Insumo
+          </Button>
+        )}
       </div>
 
       {/* Content Area - Padding bottom for fixed footer */}
@@ -498,7 +514,7 @@ const InsumosPage: React.FC = () => {
                     {currentData.map((item, index) => {
                       const totalValue = (item.quantity || 0) * (item.unitValue || 0);
                       const isEven = index % 2 === 0;
-                      const isSelected = selectedIds.has(item.id!);
+                      const isSelected = item.id ? selectedIds.has(item.id) : false;
                       
                       const rowBackground = isSelected 
                           ? (currentTheme.isDark ? 'rgba(59, 130, 246, 0.2)' : '#eff6ff')
@@ -514,7 +530,7 @@ const InsumosPage: React.FC = () => {
                              <input 
                                 type="checkbox" 
                                 checked={isSelected}
-                                onChange={() => handleSelectOne(item.id!)}
+                                onChange={() => item.id && handleSelectOne(item.id)}
                                 className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
                              />
                           </td>
@@ -540,20 +556,27 @@ const InsumosPage: React.FC = () => {
                           </td>
                           <td className="p-4">
                             <div className="flex items-center justify-center space-x-2">
-                               <button 
-                                  onClick={() => handleEdit(item)}
-                                  className="p-1.5 rounded hover:bg-blue-500/10 text-blue-500 transition-colors"
-                                  title="Editar"
-                               >
-                                 <Edit size={16} />
-                               </button>
-                               <button 
-                                  onClick={() => handleDeleteClick(item.id!)}
-                                  className="p-1.5 rounded hover:bg-red-500/10 text-red-500 transition-colors"
-                                  title="Excluir"
-                               >
-                                 <Trash2 size={16} />
-                               </button>
+                               {/* Edit Button - Permission Checked */}
+                               {hasPermission('orcamento_insumos', 'create') && (
+                                 <button 
+                                    onClick={() => handleEdit(item)}
+                                    className="p-1.5 rounded hover:bg-blue-500/10 text-blue-500 transition-colors"
+                                    title="Editar"
+                                 >
+                                   <Edit size={16} />
+                                 </button>
+                               )}
+                               
+                               {/* Delete Button - Permission Checked */}
+                               {hasPermission('orcamento_insumos', 'delete') && (
+                                 <button 
+                                    onClick={() => handleDeleteClick(item.id!)}
+                                    className="p-1.5 rounded hover:bg-red-500/10 text-red-500 transition-colors"
+                                    title="Excluir"
+                                 >
+                                   <Trash2 size={16} />
+                                 </button>
+                               )}
                             </div>
                           </td>
                         </tr>
@@ -576,14 +599,18 @@ const InsumosPage: React.FC = () => {
                   >
                     {/* Selection Overlay for Cards (optional, keeping simple for now) */}
                     
-                    {/* Card Actions */}
+                    {/* Card Actions - Permissions Checked */}
                     <div className="absolute top-4 right-4 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                       <button onClick={() => handleEdit(item)} className="p-1.5 rounded bg-blue-500 text-white hover:bg-blue-600">
-                          <Edit size={14} />
-                       </button>
-                       <button onClick={() => handleDeleteClick(item.id!)} className="p-1.5 rounded bg-red-500 text-white hover:bg-red-600">
-                          <Trash2 size={14} />
-                       </button>
+                       {hasPermission('orcamento_insumos', 'create') && (
+                         <button onClick={() => handleEdit(item)} className="p-1.5 rounded bg-blue-500 text-white hover:bg-blue-600">
+                            <Edit size={14} />
+                         </button>
+                       )}
+                       {hasPermission('orcamento_insumos', 'delete') && (
+                         <button onClick={() => handleDeleteClick(item.id!)} className="p-1.5 rounded bg-red-500 text-white hover:bg-red-600">
+                            <Trash2 size={14} />
+                         </button>
+                       )}
                     </div>
 
                     <div className="flex justify-between items-start mb-4">
@@ -618,7 +645,7 @@ const InsumosPage: React.FC = () => {
         )}
       </div>
 
-      {/* Fixed Bottom Bar */}
+      {/* Fixed Bottom Bar - Bulk actions only if delete permission */}
       <BottomActionsBar 
         totalItems={filteredItems.length}
         currentPage={currentPage}
@@ -629,7 +656,7 @@ const InsumosPage: React.FC = () => {
         
         // Bulk props
         selectedCount={selectedIds.size}
-        onDeleteSelected={handleBulkDelete}
+        onDeleteSelected={hasPermission('orcamento_insumos', 'delete') ? handleBulkDeleteClick : undefined}
         onCancelSelection={() => setSelectedIds(new Set())}
         isDeleting={isDeletingMultiple}
       />
@@ -980,7 +1007,7 @@ const InsumosPage: React.FC = () => {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete Confirmation Modal (Single) */}
       {deleteId && (
         <div 
           className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
@@ -1018,6 +1045,52 @@ const InsumosPage: React.FC = () => {
                 className="w-full"
               >
                 Excluir
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NEW: Bulk Delete Confirmation Modal */}
+      {isBulkDeleteModalOpen && (
+        <div 
+          className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          onClick={() => setIsBulkDeleteModalOpen(false)}
+        >
+          <div 
+            className="w-full max-w-sm rounded-xl shadow-2xl border p-6 text-center animate-in zoom-in-95 duration-200"
+            style={{ 
+              backgroundColor: currentTheme.colors.card, 
+              borderColor: currentTheme.colors.border 
+            }} 
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-4">
+              <Trash2 className="h-6 w-6 text-red-600" />
+            </div>
+            
+            <h3 className="text-lg font-bold mb-2" style={{ color: currentTheme.colors.text }}>Exclusão em Massa</h3>
+            <p className="text-sm mb-6 opacity-80" style={{ color: currentTheme.colors.textSecondary }}>
+              Tem certeza que deseja excluir <b>{selectedIds.size}</b> itens selecionados? 
+              <br/>
+              <span className="text-xs text-red-500 mt-1 block">Esta ação é irreversível.</span>
+            </p>
+
+            <div className="flex gap-3 justify-center">
+              <Button 
+                variant="secondary" 
+                onClick={() => setIsBulkDeleteModalOpen(false)}
+                className="w-full"
+              >
+                Cancelar
+              </Button>
+              <Button 
+                variant="danger" 
+                onClick={confirmBulkDelete}
+                isLoading={isDeletingMultiple}
+                className="w-full"
+              >
+                Sim, Excluir Tudo
               </Button>
             </div>
           </div>
