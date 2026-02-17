@@ -1,131 +1,62 @@
-import { db, auth, googleProvider } from '../lib/firebase';
-import { signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
-import { collection, doc, getDoc, setDoc, serverTimestamp, query, where, getDocs, addDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { collection, query, where, getDocs, addDoc, serverTimestamp, limit } from 'firebase/firestore';
 import { User } from '../types';
 
+const COLLECTION_NAME = 'users';
 const ADMIN_EMAIL = 'pedrolucasmota2005@gmail.com';
 
-// Helper to ensure Firestore user document exists
-const ensureFirestoreUser = async (firebaseUser: any) => {
-  const userRef = doc(db, 'users', firebaseUser.uid);
-  const userSnap = await getDoc(userRef);
+export const authService = {
+  /**
+   * Logs in a user by email.
+   * STRICT WHITELIST IMPLEMENTATION:
+   * Only users already present in the 'users' collection can log in.
+   * Auto-registration is disabled for everyone except the hardcoded ADMIN_EMAIL.
+   */
+  login: async (email: string): Promise<User> => {
+    const usersRef = collection(db, COLLECTION_NAME);
+    const q = query(usersRef, where("email", "==", email), limit(1));
+    const querySnapshot = await getDocs(q);
 
-  if (userSnap.exists()) {
-    const data = userSnap.data();
-    return {
-      id: userSnap.id,
-      name: data.name,
-      email: data.email,
-      role: data.role,
-      profileId: data.profileId,
-      createdAt: data.createdAt?.toDate() || new Date(),
-    };
-  } else {
-    // User not in Firestore
-    if (firebaseUser.email === ADMIN_EMAIL) {
-      // BOOTSTRAP ADMIN
-      let adminProfileId = '';
-      const profilesRef = collection(db, 'access_profiles');
-      const q = query(profilesRef, where("name", "==", "Super Admin"));
-      const profileSnap = await getDocs(q);
-
-      if (!profileSnap.empty) {
-        adminProfileId = profileSnap.docs[0].id;
-      } else {
-        const newProfileRef = await addDoc(profilesRef, {
-          name: "Super Admin",
-          permissions: ['admin:full'],
-          createdAt: serverTimestamp()
-        });
-        adminProfileId = newProfileRef.id;
-      }
-
-      const newUser: User = {
-        id: firebaseUser.uid,
-        name: firebaseUser.displayName || 'Admin',
-        email: firebaseUser.email,
-        role: 'admin',
-        profileId: adminProfileId,
-        createdAt: new Date(),
+    if (!querySnapshot.empty) {
+      // User exists in whitelist -> Allow Access
+      const doc = querySnapshot.docs[0];
+      const data = doc.data();
+      return {
+        id: doc.id,
+        email: data.email,
+        role: data.role,
+        profileId: data.profileId,
+        createdAt: data.createdAt?.toDate() || new Date(),
       };
-
-      await setDoc(userRef, {
-        ...newUser,
-        createdAt: serverTimestamp()
-      });
-
-      return newUser;
     } else {
-      // Check if user was pre-registered by Admin (found by email)
-      const usersRef = collection(db, 'users');
-      const qEmail = query(usersRef, where("email", "==", firebaseUser.email));
-      const emailSnap = await getDocs(qEmail);
+      // User does NOT exist.
+      
+      // Fallback: If it is the Super Admin, allow creation (Bootstrapping)
+      // Otherwise: BLOCK ACCESS.
+      if (email === ADMIN_EMAIL) {
+        const newUser: Omit<User, 'id'> = {
+          email,
+          role: 'admin',
+          createdAt: new Date(),
+        };
 
-      if (!emailSnap.empty) {
-        // Migrate pre-registered user to Auth UID
-        const oldDoc = emailSnap.docs[0];
-        const oldData = oldDoc.data();
-
-        await setDoc(userRef, {
-          ...oldData,
-          id: firebaseUser.uid
+        const docRef = await addDoc(usersRef, {
+          ...newUser,
+          createdAt: serverTimestamp(),
         });
-
-        // Optional: delete old doc
-        // await deleteDoc(oldDoc.ref);
 
         return {
-          id: firebaseUser.uid,
-          ...oldData
-        } as User;
+          id: docRef.id,
+          ...newUser,
+        };
+      } else {
+        // WHITELIST BLOCK
+        throw new Error("Acesso negado. Seu email não está cadastrado no sistema.");
       }
-
-      throw new Error("Acesso negado. Peça ao administrador para cadastrar seu email no sistema.");
-    }
-  }
-};
-
-export const authService = {
-  // Legacy stub
-  login: async (email: string) => { throw new Error("Use Login Google ou Email/Senha"); },
-
-  loginWithGoogle: async (): Promise<User> => {
-    try {
-      const result = await signInWithPopup(auth, googleProvider);
-      return await ensureFirestoreUser(result.user);
-    } catch (error: any) {
-      console.error("Login Google error", error);
-      throw error;
     }
   },
 
-  loginWithEmail: async (email: string, password: string): Promise<User> => {
-    try {
-      const result = await signInWithEmailAndPassword(auth, email, password);
-      return await ensureFirestoreUser(result.user);
-    } catch (error: any) {
-      console.error("Login Email error", error);
-      throw error;
-    }
-  },
-
-  registerWithEmail: async (email: string, password: string, name: string): Promise<User> => {
-    // Only used for initial bootstrapping or explicit registration if enabled
-    try {
-        const result = await createUserWithEmailAndPassword(auth, email, password);
-        // Add display name
-        // await updateProfile(result.user, { displayName: name }); 
-        // Note: updateProfile needs import. Skipping for brevity, handle in ensureFirestoreUser fallback logic
-        
-        return await ensureFirestoreUser({ ...result.user, displayName: name });
-    } catch (error: any) {
-        console.error("Register Error", error);
-        throw error;
-    }
-  },
-
-  logout: async () => {
-    await signOut(auth);
+  logout: () => {
     localStorage.removeItem('obralog_user');
   },
 

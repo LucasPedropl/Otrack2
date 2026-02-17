@@ -4,100 +4,103 @@ service cloud.firestore {
 
     // --- FUNÇÕES AUXILIARES ---
 
+    // Verifica se o usuário está logado no Firebase Auth
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    // Email mestre (Backdoor para configuração inicial)
-    function isBootstrapAdmin() {
-      return request.auth.token.email == 'pedrolucasmota2005@gmail.com';
-    }
-
-    // Auxiliar para pegar dados do usuário (expressão pura)
+    // Busca os dados do usuário atual na coleção 'users'
+    // O documento do usuário DEVE ter o mesmo ID do UID da autenticação (request.auth.uid)
     function getUserData() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
-    // Auxiliar para pegar dados do perfil (expressão pura)
-    function getProfileData(profileId) {
-      return get(/databases/$(database)/documents/access_profiles/$(profileId)).data;
+    // Busca o Perfil de Acesso atrelado ao usuário
+    function getUserProfile() {
+      let userData = getUserData();
+      return get(/databases/$(database)/documents/access_profiles/$(userData.profileId)).data;
     }
 
-    // Verifica permissão.
-    // Lógica: É admin mestre? OU (Está logado E existe usuário E existe perfil E tem permissão no perfil)
+    // Verifica se o usuário tem uma permissão específica OU é admin total
     function hasPermission(requiredPermission) {
-      return isBootstrapAdmin() || (
-        isAuthenticated() &&
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        getUserData().profileId != null &&
-        exists(/databases/$(database)/documents/access_profiles/$(getUserData().profileId)) &&
-        (
-          'admin:full' in getProfileData(getUserData().profileId).permissions || 
-          requiredPermission in getProfileData(getUserData().profileId).permissions
-        )
-      );
+      let profile = getUserProfile();
+      return 'admin:full' in profile.permissions || requiredPermission in profile.permissions;
     }
 
+    // Verifica se o usuário tem acesso apenas de leitura (view)
     function canView(module) {
       return hasPermission(module + ':view');
     }
 
+    // Verifica se o usuário pode criar ou editar
     function canWrite(module) {
       return hasPermission(module + ':create');
     }
 
+    // Verifica se o usuário pode excluir
     function canDelete(module) {
       return hasPermission(module + ':delete');
     }
 
     // --- REGRAS POR COLEÇÃO ---
 
+    // 1. USUÁRIOS
+    // - Qualquer um autenticado pode ler (para listar usuários)
+    // - Apenas quem tem permissão 'acesso_usuarios:create' pode criar/editar
+    // - Usuário pode ler o próprio perfil
     match /users/{userId} {
       allow read: if isAuthenticated();
-      // Permite criar se for admin OU se for o próprio usuário se registrando (necessário para o primeiro login)
-      allow write: if isAuthenticated() && (
-        isBootstrapAdmin() ||
-        hasPermission('acesso_usuarios:create') || 
-        request.auth.uid == userId
-      );
+      allow write: if isAuthenticated() && hasPermission('acesso_usuarios:create');
+      // Permite que o próprio usuário edite dados básicos (opcional)
+      allow update: if isAuthenticated() && request.auth.uid == userId; 
     }
 
+    // 2. PERFIS DE ACESSO
+    // - Leitura aberta para autenticados (necessário para checar permissões)
+    // - Escrita restrita
     match /access_profiles/{profileId} {
       allow read: if isAuthenticated(); 
       allow write: if isAuthenticated() && hasPermission('acesso_perfis:create');
       allow delete: if isAuthenticated() && hasPermission('acesso_perfis:delete');
     }
 
+    // 3. INSUMOS (Inventário Global)
     match /inventory/{itemId} {
       allow read: if isAuthenticated() && canView('orcamento_insumos');
       allow create, update: if isAuthenticated() && canWrite('orcamento_insumos');
       allow delete: if isAuthenticated() && canDelete('orcamento_insumos');
     }
 
+    // 4. UNIDADES DE MEDIDA
     match /measurement_units/{unitId} {
       allow read: if isAuthenticated() && canView('orcamento_unidades');
       allow write: if isAuthenticated() && canWrite('orcamento_unidades');
       allow delete: if isAuthenticated() && canDelete('orcamento_unidades');
     }
 
+    // 5. CATEGORIAS
     match /item_categories/{catId} {
       allow read: if isAuthenticated() && canView('orcamento_categorias');
       allow write: if isAuthenticated() && canWrite('orcamento_categorias');
       allow delete: if isAuthenticated() && canDelete('orcamento_categorias');
     }
 
+    // 6. OBRAS (Construction Sites)
     match /construction_sites/{siteId} {
       allow read: if isAuthenticated() && canView('obras'); 
       allow create, update: if isAuthenticated() && canWrite('obras');
       allow delete: if isAuthenticated() && canDelete('obras');
 
+      // Subcoleção: Estoque da Obra
       match /inventory/{siteItemId} {
+        // Herda permissão de visualização da obra, mas escrita depende da lógica de gestão
         allow read: if isAuthenticated() && canView('obras');
-        allow write: if isAuthenticated() && canWrite('obras');
+        allow write: if isAuthenticated() && canWrite('obras'); // Simplificado: quem edita obra mexe no estoque
         
+        // Subcoleção: Movimentações (Histórico)
         match /movements/{movId} {
            allow read: if isAuthenticated() && canView('obras');
-           allow create: if isAuthenticated();
+           allow create: if isAuthenticated(); // Qualquer um com acesso à obra pode registrar movimento se a UI permitir
         }
       }
     }
