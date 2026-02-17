@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { useTheme } from '../../../../contexts/ThemeContext';
 import { siteInventoryService } from '../../../../services/siteInventoryService';
 import { StockMovement } from '../../../../types';
-import { Search, ArrowDownLeft, ArrowUpRight, Calendar, User, FileText, ArrowLeftRight } from 'lucide-react';
+import { Search, ArrowDownLeft, ArrowUpRight, Calendar, User, FileText, ArrowLeftRight, X, Info } from 'lucide-react';
 import { BottomActionsBar } from '../../../../components/layout/BottomActionsBar';
 
 const ObraMovements: React.FC = () => {
@@ -14,6 +14,9 @@ const ObraMovements: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   
+  // Selected Item for Modal
+  const [selectedMovement, setSelectedMovement] = useState<StockMovement | null>(null);
+
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 15;
@@ -133,7 +136,8 @@ const ObraMovements: React.FC = () => {
                   return (
                     <tr 
                         key={item.id}
-                        className="group hover:opacity-80 transition-opacity"
+                        onClick={() => setSelectedMovement(item)}
+                        className="group hover:opacity-80 transition-colors cursor-pointer"
                         style={{ backgroundColor: index % 2 === 0 ? 'transparent' : (currentTheme.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)') }}
                     >
                         <td className="p-4 whitespace-nowrap" style={{ color: currentTheme.colors.text }}>
@@ -161,9 +165,9 @@ const ObraMovements: React.FC = () => {
                             </div>
                         </td>
                         <td className="p-4" style={{ color: currentTheme.colors.textSecondary }}>
-                            <div className="flex items-center gap-2 text-xs">
-                                {item.reason && <FileText size={14} className="opacity-50" />}
-                                {item.reason || '-'}
+                            <div className="flex items-center gap-2 text-xs max-w-[200px]">
+                                {item.reason && <FileText size={14} className="opacity-50 flex-shrink-0" />}
+                                <span className="truncate" title={item.reason}>{item.reason || '-'}</span>
                             </div>
                         </td>
                     </tr>
@@ -182,8 +186,79 @@ const ObraMovements: React.FC = () => {
         onPageChange={setCurrentPage}
         onImport={() => {}}
         onExport={handleExport}
-        // Disable bulk actions here as movements are usually immutable logs
       />
+
+      {/* DETAIL MODAL */}
+      {selectedMovement && (
+        <div 
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          onClick={() => setSelectedMovement(null)}
+        >
+          <div 
+            className="w-full max-w-md rounded-2xl shadow-2xl border relative overflow-hidden"
+            style={{ 
+              backgroundColor: currentTheme.colors.card, 
+              borderColor: currentTheme.colors.border 
+            }} 
+            onClick={(e) => e.stopPropagation()}
+          >
+             {/* Header */}
+             <div className="p-6 border-b flex justify-between items-start" style={{ borderColor: currentTheme.colors.border }}>
+                <div className="flex items-start gap-3">
+                   <div className={`p-3 rounded-full ${selectedMovement.type === 'IN' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                      {selectedMovement.type === 'IN' ? <ArrowDownLeft size={24} /> : <ArrowUpRight size={24} />}
+                   </div>
+                   <div>
+                      <h3 className="text-lg font-bold" style={{ color: currentTheme.colors.text }}>Detalhes da Movimentação</h3>
+                      <p className="text-sm opacity-60" style={{ color: currentTheme.colors.textSecondary }}>
+                         {selectedMovement.date.toLocaleString()}
+                      </p>
+                   </div>
+                </div>
+                <button 
+                  onClick={() => setSelectedMovement(null)}
+                  className="p-2 rounded-full hover:bg-black/10 transition-colors"
+                  style={{ color: currentTheme.colors.textSecondary }}
+                >
+                   <X size={20} />
+                </button>
+             </div>
+
+             {/* Content */}
+             <div className="p-6 space-y-4">
+                
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="p-3 rounded-lg border bg-opacity-50" style={{ borderColor: currentTheme.colors.border, backgroundColor: currentTheme.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' }}>
+                        <span className="text-xs opacity-60 block mb-1" style={{ color: currentTheme.colors.textSecondary }}>Item</span>
+                        <span className="font-medium" style={{ color: currentTheme.colors.text }}>{selectedMovement.itemName}</span>
+                    </div>
+                    <div className="p-3 rounded-lg border bg-opacity-50" style={{ borderColor: currentTheme.colors.border, backgroundColor: currentTheme.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' }}>
+                        <span className="text-xs opacity-60 block mb-1" style={{ color: currentTheme.colors.textSecondary }}>Quantidade</span>
+                        <span className={`font-bold text-lg ${selectedMovement.type === 'IN' ? 'text-green-600' : 'text-red-600'}`}>
+                           {selectedMovement.type === 'IN' ? '+' : '-'}{selectedMovement.quantity} {selectedMovement.itemUnit}
+                        </span>
+                    </div>
+                </div>
+
+                <div>
+                    <span className="text-xs opacity-60 block mb-1" style={{ color: currentTheme.colors.textSecondary }}>Responsável</span>
+                    <div className="flex items-center gap-2 p-2 rounded" style={{ backgroundColor: currentTheme.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }}>
+                       <User size={16} className="opacity-50" style={{ color: currentTheme.colors.text }} />
+                       <span style={{ color: currentTheme.colors.text }}>{selectedMovement.userName || 'Sistema'}</span>
+                    </div>
+                </div>
+
+                <div>
+                    <span className="text-xs opacity-60 block mb-1" style={{ color: currentTheme.colors.textSecondary }}>Observação / Motivo</span>
+                    <div className="p-3 rounded border min-h-[80px] text-sm leading-relaxed" style={{ borderColor: currentTheme.colors.border, color: currentTheme.colors.text, backgroundColor: currentTheme.colors.background }}>
+                       {selectedMovement.reason ? selectedMovement.reason : <span className="opacity-50 italic">Nenhuma observação registrada.</span>}
+                    </div>
+                </div>
+
+             </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

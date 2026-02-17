@@ -157,8 +157,17 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
 
   const handlePrimaryNavigate = (path: string) => {
     navigate(path);
-    if (isSettingsOpen && window.innerWidth < 768) {
-       closeSettings();
+    
+    // CORREÇÃO: Lógica para fechar a sidebar de configurações ao navegar para módulos principais
+    if (path === '/admin/settings') {
+        // Se clicou explicitamente em "Aparência/Configurações", garante que abra
+        if (!isSettingsOpen) openSettings();
+    } else {
+        // Se foi para Dashboard, Obras, etc., fecha a sidebar de configurações
+        // para que o conteúdo principal seja exibido corretamente
+        if (isSettingsOpen) {
+           closeSettings();
+        }
     }
   };
 

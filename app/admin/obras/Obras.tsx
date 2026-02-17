@@ -1,17 +1,23 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { constructionService } from '../../../services/constructionService';
 import { ConstructionSite } from '../../../types';
-import { Plus, Search, Building2, Edit, Trash2, X } from 'lucide-react';
+import { Plus, Search, Building2, Edit, Trash2, X, LayoutList, LayoutGrid, FolderDot, Calendar } from 'lucide-react';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { Button } from '../../../components/ui/Button';
 
 const ObrasPage: React.FC = () => {
   const { currentTheme } = useTheme();
+  const navigate = useNavigate();
+  
   const [sites, setSites] = useState<ConstructionSite[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  
+  // View Mode State
+  const [viewMode, setViewMode] = useState<'list' | 'card'>('card'); // Default to card for visual appeal
 
   // Form State
   const [name, setName] = useState('');
@@ -29,13 +35,19 @@ const ObrasPage: React.FC = () => {
     fetchSites();
   }, []);
 
-  const handleEdit = (site: ConstructionSite) => {
+  const handleNavigate = (id: string) => {
+    navigate(`/admin/obra/${id}`);
+  };
+
+  const handleEdit = (e: React.MouseEvent, site: ConstructionSite) => {
+    e.stopPropagation(); // Prevent navigation
     setName(site.name);
     setEditingId(site.id!);
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation(); // Prevent navigation
     if (window.confirm('Tem certeza que deseja excluir esta obra?')) {
       try {
         await constructionService.delete(id);
@@ -121,6 +133,33 @@ const ObrasPage: React.FC = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
+
+          {/* View Toggles */}
+          <div className="flex items-center border rounded-lg overflow-hidden" style={{ borderColor: currentTheme.colors.border }}>
+             <button 
+                onClick={() => setViewMode('list')}
+                className={`p-2 transition-colors ${viewMode === 'list' ? 'bg-opacity-100' : 'bg-opacity-0 hover:bg-opacity-10'}`}
+                style={{ 
+                  backgroundColor: viewMode === 'list' ? currentTheme.colors.primary : 'transparent',
+                  color: viewMode === 'list' ? '#fff' : currentTheme.colors.text
+                }}
+                title="Visualização em Lista"
+             >
+                <LayoutList size={20} />
+             </button>
+             <div className="w-px h-full" style={{ backgroundColor: currentTheme.colors.border }}></div>
+             <button 
+                onClick={() => setViewMode('card')}
+                className={`p-2 transition-colors ${viewMode === 'card' ? 'bg-opacity-100' : 'bg-opacity-0 hover:bg-opacity-10'}`}
+                style={{ 
+                  backgroundColor: viewMode === 'card' ? currentTheme.colors.primary : 'transparent',
+                  color: viewMode === 'card' ? '#fff' : currentTheme.colors.text
+                }}
+                title="Visualização em Grade"
+             >
+                <LayoutGrid size={20} />
+             </button>
+          </div>
         </div>
 
         <Button 
@@ -143,55 +182,120 @@ const ObrasPage: React.FC = () => {
             <p style={{ color: currentTheme.colors.text }}>Nenhuma obra encontrada.</p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border" style={{ borderColor: currentTheme.colors.border, backgroundColor: currentTheme.colors.card }}>
-          <table className="w-full text-left text-sm border-collapse min-w-[500px]">
-            <thead>
-              <tr className="" style={{ backgroundColor: currentTheme.isDark ? 'rgba(255,255,255,0.05)' : '#e5e7eb' }}>
-                <th className="p-4 font-medium" style={{ color: currentTheme.colors.textSecondary }}>Nome da Obra</th>
-                <th className="p-4 font-medium w-32 text-center" style={{ color: currentTheme.colors.textSecondary }}>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredSites.map((site, index) => {
-                const isEven = index % 2 === 0;
-                const rowBackground = isEven 
-                    ? 'transparent' 
-                    : currentTheme.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)';
-
-                return (
-                  <tr 
-                    key={site.id} 
-                    className="group hover:opacity-80 transition-opacity"
-                    style={{ backgroundColor: rowBackground }}
-                  >
-                    <td className="p-4" style={{ color: currentTheme.colors.text }}>
-                      <div className="font-medium text-base whitespace-nowrap">{site.name}</div>
-                      <div className="text-xs opacity-50">Criado em {site.createdAt.toLocaleDateString()}</div>
-                    </td>
-                    <td className="p-4">
-                      <div className="flex items-center justify-center space-x-2">
-                          <button 
-                            onClick={() => handleEdit(site)}
-                            className="p-1.5 rounded hover:bg-blue-500/10 text-blue-500 transition-colors"
-                            title="Editar"
-                          >
-                            <Edit size={18} />
-                          </button>
-                          <button 
-                            onClick={() => handleDelete(site.id!)}
-                            className="p-1.5 rounded hover:bg-red-500/10 text-red-500 transition-colors"
-                            title="Excluir"
-                          >
-                            <Trash2 size={18} />
-                          </button>
-                      </div>
-                    </td>
+        <>
+          {viewMode === 'list' ? (
+            // LIST VIEW
+            <div className="overflow-x-auto rounded-xl border" style={{ borderColor: currentTheme.colors.border, backgroundColor: currentTheme.colors.card }}>
+              <table className="w-full text-left text-sm border-collapse min-w-[500px]">
+                <thead>
+                  <tr className="" style={{ backgroundColor: currentTheme.isDark ? 'rgba(255,255,255,0.05)' : '#e5e7eb' }}>
+                    <th className="p-4 font-medium" style={{ color: currentTheme.colors.textSecondary }}>Nome da Obra</th>
+                    <th className="p-4 font-medium" style={{ color: currentTheme.colors.textSecondary }}>Data de Criação</th>
+                    <th className="p-4 font-medium w-32 text-center" style={{ color: currentTheme.colors.textSecondary }}>Ações</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+                <tbody>
+                  {filteredSites.map((site, index) => {
+                    const isEven = index % 2 === 0;
+                    const rowBackground = isEven 
+                        ? 'transparent' 
+                        : currentTheme.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)';
+
+                    return (
+                      <tr 
+                        key={site.id} 
+                        onClick={() => handleNavigate(site.id!)}
+                        className="group hover:opacity-80 transition-opacity cursor-pointer"
+                        style={{ backgroundColor: rowBackground }}
+                      >
+                        <td className="p-4" style={{ color: currentTheme.colors.text }}>
+                          <div className="flex items-center gap-3">
+                             <div className={`p-2 rounded-lg bg-opacity-10`} style={{ backgroundColor: `${currentTheme.colors.primary}20` }}>
+                                <FolderDot className="h-5 w-5" style={{ color: currentTheme.colors.primary }} />
+                             </div>
+                             <span className="font-medium text-base whitespace-nowrap">{site.name}</span>
+                          </div>
+                        </td>
+                        <td className="p-4" style={{ color: currentTheme.colors.textSecondary }}>
+                           {site.createdAt.toLocaleDateString()}
+                        </td>
+                        <td className="p-4">
+                          <div className="flex items-center justify-center space-x-2">
+                              <button 
+                                onClick={(e) => handleEdit(e, site)}
+                                className="p-1.5 rounded hover:bg-blue-500/10 text-blue-500 transition-colors"
+                                title="Editar"
+                              >
+                                <Edit size={18} />
+                              </button>
+                              <button 
+                                onClick={(e) => handleDelete(e, site.id!)}
+                                className="p-1.5 rounded hover:bg-red-500/10 text-red-500 transition-colors"
+                                title="Excluir"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            // CARD VIEW
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+               {filteredSites.map((site) => (
+                 <div 
+                    key={site.id}
+                    onClick={() => handleNavigate(site.id!)}
+                    className="relative group p-6 rounded-xl border flex flex-col justify-between cursor-pointer hover:shadow-md transition-all hover:-translate-y-1"
+                    style={{ 
+                      backgroundColor: currentTheme.colors.card, 
+                      borderColor: currentTheme.colors.border 
+                    }}
+                 >
+                    {/* Actions (Absolute) */}
+                    <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button 
+                          onClick={(e) => handleEdit(e, site)}
+                          className="p-1.5 rounded bg-blue-500 text-white hover:bg-blue-600 transition-colors shadow-sm"
+                          title="Editar"
+                        >
+                          <Edit size={14} />
+                        </button>
+                        <button 
+                          onClick={(e) => handleDelete(e, site.id!)}
+                          className="p-1.5 rounded bg-red-500 text-white hover:bg-red-600 transition-colors shadow-sm"
+                          title="Excluir"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                    </div>
+
+                    <div className="flex items-center gap-4 mb-4">
+                       <div className="p-3 rounded-xl bg-opacity-10 shadow-inner" style={{ backgroundColor: `${currentTheme.colors.primary}15` }}>
+                          <Building2 className="h-8 w-8" style={{ color: currentTheme.colors.primary }} />
+                       </div>
+                       <div>
+                          <h3 className="font-bold text-lg leading-tight line-clamp-1" style={{ color: currentTheme.colors.text }}>{site.name}</h3>
+                          <div className="flex items-center gap-1 mt-1 text-xs opacity-60" style={{ color: currentTheme.colors.textSecondary }}>
+                             <Calendar size={12} />
+                             <span>{site.createdAt.toLocaleDateString()}</span>
+                          </div>
+                       </div>
+                    </div>
+
+                    <div className="mt-4 pt-4 border-t flex justify-between items-center text-sm" style={{ borderColor: currentTheme.colors.border }}>
+                        <span className="opacity-60" style={{ color: currentTheme.colors.textSecondary }}>Status</span>
+                        <span className="font-medium px-2 py-0.5 rounded bg-green-500/10 text-green-600 text-xs uppercase tracking-wide">Ativo</span>
+                    </div>
+                 </div>
+               ))}
+            </div>
+          )}
+        </>
       )}
 
       {/* Create/Edit Modal */}
