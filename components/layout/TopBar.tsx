@@ -1,17 +1,73 @@
-import React from 'react';
+
+import React, { useState, useRef, useEffect } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useSidebar } from '../../contexts/SidebarContext';
-import { Search, Settings, Menu } from 'lucide-react';
+import { authService } from '../../services/authService';
+import { accessProfileService } from '../../services/accessProfileService';
+import { useNavigate } from 'react-router-dom';
+import { Search, Settings, Menu, LogOut, User as UserIcon, ChevronDown } from 'lucide-react';
+import { User, AccessProfile } from '../../types';
 
 interface TopBarProps {
   onToggleSettings: () => void;
   isSettingsOpen: boolean;
-  hasSettingsAccess?: boolean; // New prop to control visibility
+  hasSettingsAccess?: boolean;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({ onToggleSettings, isSettingsOpen, hasSettingsAccess = true }) => {
   const { currentTheme } = useTheme();
   const { toggleMobileSidebar } = useSidebar();
+  const navigate = useNavigate();
+  
+  const [user, setUser] = useState<User | null>(authService.getCurrentUser());
+  const [profileName, setProfileName] = useState<string>('');
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (user?.profileId) {
+        try {
+          const profile = await accessProfileService.getById(user.profileId);
+          if (profile) setProfileName(profile.name);
+        } catch (e) {
+          console.error("Erro ao carregar perfil na TopBar", e);
+        }
+      } else if (user?.role) {
+        // Fallback para role caso não tenha profileId
+        const roles: Record<string, string> = {
+          admin: 'Administrador',
+          almoxarife: 'Almoxarife',
+          operario: 'Operário'
+        };
+        setProfileName(roles[user.role] || user.role);
+      }
+    };
+    fetchProfile();
+  }, [user]);
+
+  // Fechar menu ao clicar fora
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleLogout = async () => {
+    await authService.logout();
+    navigate('/');
+  };
+
+  const getInitials = (name?: string) => {
+    if (!name) return '??';
+    const parts = name.trim().split(' ');
+    if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  };
 
   return (
     <header 
@@ -20,7 +76,7 @@ export const TopBar: React.FC<TopBarProps> = ({ onToggleSettings, isSettingsOpen
         backgroundColor: currentTheme.colors.sidebar, 
       }}
     >
-       {/* Physical Border Line */}
+       {/* Linha de borda física */}
        <div 
          className="absolute bottom-0 left-0 right-0 h-[1px]" 
          style={{ 
@@ -29,7 +85,7 @@ export const TopBar: React.FC<TopBarProps> = ({ onToggleSettings, isSettingsOpen
          }} 
        />
 
-       {/* Left Side: Mobile Menu Trigger */}
+       {/* Esquerda: Trigger do Menu Mobile */}
        <div className="flex items-center gap-4">
           <button
             onClick={toggleMobileSidebar}
@@ -40,12 +96,12 @@ export const TopBar: React.FC<TopBarProps> = ({ onToggleSettings, isSettingsOpen
           </button>
        </div>
 
-       {/* Right Side: Search + Settings + Profile */}
+       {/* Direita: Pesquisa + Configurações + Perfil */}
        <div className="flex items-center gap-3 justify-end flex-1">
          
-         {/* Global Search Bar - Hidden on mobile */}
+         {/* Barra de Pesquisa Global */}
          <div className="relative hidden md:block w-64">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 opacity-50" style={{ color: currentTheme.colors.text }} />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 opacity-50" style={{ color: currentTheme.colors.sidebarText }} />
             <input
               type="text"
               placeholder="Pesquisar..."
@@ -58,25 +114,24 @@ export const TopBar: React.FC<TopBarProps> = ({ onToggleSettings, isSettingsOpen
             />
          </div>
 
-         {/* Settings Button - Only show if has access */}
+         {/* Botão de Configurações */}
          {hasSettingsAccess && (
            <button 
              onClick={onToggleSettings}
              className={`p-2 rounded-lg transition-all hover:bg-white/10`}
              style={{ 
                backgroundColor: isSettingsOpen ? currentTheme.colors.primary : 'transparent',
-               border: `1px solid ${isSettingsOpen ? currentTheme.colors.primary : currentTheme.colors.sidebarText}`,
-               borderColor: isSettingsOpen ? currentTheme.colors.primary : currentTheme.colors.sidebarText,
+               border: `1px solid ${isSettingsOpen ? currentTheme.colors.primary : 'transparent'}`,
                color: isSettingsOpen ? '#fff' : currentTheme.colors.sidebarText,
                opacity: isSettingsOpen ? 1 : 0.8
              }}
              title="Configurações e Cadastros"
            >
-             <Settings size={20} style={{ opacity: isSettingsOpen ? 1 : 0.8 }} />
+             <Settings size={20} />
            </button>
          )}
 
-         {/* Divider */}
+         {/* Divisor */}
          <div 
            className="h-6 w-px mx-1" 
            style={{ 
@@ -85,22 +140,71 @@ export const TopBar: React.FC<TopBarProps> = ({ onToggleSettings, isSettingsOpen
            }}
          ></div>
 
-         {/* Profile Info */}
-         <div className="flex items-center space-x-4">
-           <div className="text-right hidden sm:block">
-             <p className="text-sm font-medium" style={{ color: currentTheme.colors.sidebarText }}>Pedro Mota</p>
-             <p className="text-xs" style={{ color: currentTheme.colors.sidebarText, opacity: 0.7 }}>Administrador</p>
-           </div>
-           <div 
-             className="h-10 w-10 rounded-full flex items-center justify-center font-bold border-2"
-             style={{ 
-               backgroundColor: currentTheme.colors.card, 
-               borderColor: currentTheme.colors.border,
-               color: currentTheme.colors.primary
-             }}
+         {/* Área do Perfil com Dropdown */}
+         <div className="relative" ref={menuRef}>
+           <button 
+              onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+              className="flex items-center space-x-3 p-1 rounded-lg hover:bg-white/5 transition-colors group"
            >
-             PM
-           </div>
+             <div className="text-right hidden sm:block">
+               <p className="text-sm font-bold leading-none mb-1" style={{ color: currentTheme.colors.sidebarText }}>
+                 {user?.name || 'Usuário'}
+               </p>
+               <p className="text-[10px] uppercase tracking-wider font-semibold opacity-60" style={{ color: currentTheme.colors.sidebarText }}>
+                 {profileName || 'Carregando...'}
+               </p>
+             </div>
+             
+             <div 
+               className="h-9 w-9 rounded-full flex items-center justify-center font-bold border-2 text-sm relative transition-transform group-hover:scale-105"
+               style={{ 
+                 backgroundColor: currentTheme.colors.card, 
+                 borderColor: currentTheme.colors.border,
+                 color: currentTheme.colors.primary
+               }}
+             >
+               {getInitials(user?.name)}
+               <div className="absolute -bottom-1 -right-1 bg-green-500 w-3 h-3 rounded-full border-2 border-slate-900"></div>
+             </div>
+             
+             <ChevronDown size={14} className={`transition-transform duration-200 hidden sm:block ${isUserMenuOpen ? 'rotate-180' : ''}`} style={{ color: currentTheme.colors.sidebarText, opacity: 0.5 }} />
+           </button>
+
+           {/* Dropdown Menu */}
+           {isUserMenuOpen && (
+             <div 
+               className="absolute right-0 mt-2 w-56 rounded-xl shadow-2xl border py-2 animate-in fade-in slide-in-from-top-2 duration-200"
+               style={{ 
+                 backgroundColor: currentTheme.colors.card, 
+                 borderColor: currentTheme.colors.border,
+                 zIndex: 100 
+               }}
+             >
+                <div className="px-4 py-3 border-b mb-2" style={{ borderColor: currentTheme.colors.border }}>
+                  <p className="text-xs font-semibold opacity-50 uppercase mb-1" style={{ color: currentTheme.colors.text }}>Conta</p>
+                  <p className="text-sm font-medium truncate" style={{ color: currentTheme.colors.text }}>{user?.email}</p>
+                </div>
+
+                <button 
+                  onClick={() => { navigate('/admin/settings'); setIsUserMenuOpen(false); }}
+                  className="w-full flex items-center gap-3 px-4 py-2 text-sm hover:bg-opacity-10 transition-colors"
+                  style={{ color: currentTheme.colors.text }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = `${currentTheme.colors.primary}15`}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                >
+                  <UserIcon size={16} />
+                  Meu Perfil / Aparência
+                </button>
+
+                <button 
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-500 hover:bg-red-500/10 transition-colors"
+                >
+                  <LogOut size={16} />
+                  Sair do Sistema
+                </button>
+             </div>
+           )}
          </div>
        </div>
     </header>

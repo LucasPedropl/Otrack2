@@ -1,3 +1,4 @@
+
 import { db } from '../lib/firebase';
 import { collection, getDocs, addDoc, doc, deleteDoc, updateDoc, query, orderBy, serverTimestamp, where } from 'firebase/firestore';
 import { User } from '../types';
@@ -16,6 +17,7 @@ export const userService = {
             id: doc.id,
             name: data.name || 'Usuário',
             email: data.email,
+            password: data.password, // Adicionado para persistência na UI
             role: data.role,
             profileId: data.profileId,
             createdAt: data.createdAt?.toDate() || new Date()
@@ -34,6 +36,7 @@ export const userService = {
             id: doc.id,
             name: data.name || 'Usuário',
             email: data.email,
+            password: data.password, // Adicionado
             role: data.role,
             profileId: data.profileId,
             createdAt: data.createdAt?.toDate() || new Date()

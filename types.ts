@@ -1,9 +1,11 @@
+
 import React from 'react';
 
 export interface User {
   id?: string;
   name?: string; // Nome do usuário
   email: string;
+  password?: string; // Senha provisória/opcional
   role: 'admin' | 'almoxarife' | 'operario'; // Mantido para compatibilidade legado, mas o sistema usará AccessProfile
   profileId?: string; // Link para o AccessProfile customizado
   createdAt: Date;

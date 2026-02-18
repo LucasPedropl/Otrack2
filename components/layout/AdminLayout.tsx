@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { LayoutProps, ConstructionSite } from '../../types';
 import { LayoutDashboard, HardHat, Settings, ChevronLeft, ChevronRight, Building2, Calculator, ShieldCheck, ChevronDown, ChevronUp, Users, FileText, Ruler, Tag, ArrowLeft, FolderDot } from 'lucide-react';
@@ -18,7 +19,6 @@ const SETTINGS_PATHS = [
   '/admin/settings'
 ];
 
-// Defined outside but filtered inside
 const RAW_SETTINGS_MENUS = [
   {
     id: 'orcamento',
@@ -45,9 +45,8 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { currentTheme } = useTheme();
-  const { hasPermission, isLoading: isPermissionsLoading } = usePermissions();
+  const { hasPermission, allowedSites, isAdmin, isLoading: isPermissionsLoading } = usePermissions();
   
-  // Contexts
   const { 
     isCollapsed: isPrimaryCollapsed, 
     toggleSidebar: togglePrimarySidebar,
@@ -64,14 +63,10 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
     closeSettings
   } = useSettingsSidebar();
   
-  // Sites State
   const [sites, setSites] = useState<ConstructionSite[]>([]);
-  
-  // Tooltip/Floating Menu State
   const [hoveredTooltip, setHoveredTooltip] = useState<{ label: string; top: number, left: number } | null>(null);
   const [hoveredSettingsMenu, setHoveredSettingsMenu] = useState<string | null>(null);
   const [hoveredMenuPosition, setHoveredMenuPosition] = useState<{ top: number; left: number } | null>(null);
-  
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({
@@ -79,39 +74,45 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
     acesso: true
   });
 
-  // Calculate filtered settings menus based on permissions
   const settingsMenus = RAW_SETTINGS_MENUS.map(menu => ({
     ...menu,
     items: menu.items.filter(item => hasPermission(item.permission.split(':')[0], 'view'))
   })).filter(menu => menu.items.length > 0);
 
-  // Check if user has access to ANY settings module
   const hasSettingsAccess = settingsMenus.length > 0;
 
   useEffect(() => {
     const fetchSites = async () => {
       try {
         const data = await constructionService.getAll();
-        setSites(data);
+        
+        // FILTRAR OBRAS BASEADO NO PERFIL
+        const filteredSites = data.filter(site => {
+           // Se for admin total ou não houver lista de sites permitidos, mostra tudo
+           if (isAdmin || allowedSites.length === 0) return true;
+           // Caso contrário, verifica se o ID da obra está na lista permitida
+           return allowedSites.includes(site.id!);
+        });
+        
+        setSites(filteredSites);
       } catch (error) {
         console.error("Failed to fetch sites for sidebar", error);
       }
     };
-    fetchSites();
-  }, []);
+    if (!isPermissionsLoading) {
+      fetchSites();
+    }
+  }, [isPermissionsLoading, allowedSites, isAdmin]);
 
   useEffect(() => {
     if (window.innerWidth < 768) return;
-
     const autoOpenPaths = SETTINGS_PATHS.filter(path => path !== '/admin/settings');
     const shouldAutoOpen = autoOpenPaths.some(path => location.pathname.startsWith(path));
-
     if (shouldAutoOpen && !isSettingsOpen) {
       openSettings();
     }
   }, [location.pathname, isSettingsOpen, openSettings]);
 
-  // Close mobile sidebar on route change
   useEffect(() => {
     closeMobileSidebar();
   }, [location.pathname]);
@@ -123,7 +124,6 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
   const handleTooltip = (e: React.MouseEvent<HTMLElement>, label: string, sidebarType: 'primary') => {
     if (window.innerWidth < 768) return;
     if (sidebarType === 'primary' && !isPrimaryCollapsed) return;
-
     const rect = e.currentTarget.getBoundingClientRect();
     setHoveredTooltip({
       label,
@@ -134,24 +134,16 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
 
   const handleSettingsMenuHover = (e: React.MouseEvent<HTMLElement>, menuId: string) => {
     if (!isSettingsCollapsed || window.innerWidth < 768) return;
-
     if (hoverTimeoutRef.current) {
         clearTimeout(hoverTimeoutRef.current);
         hoverTimeoutRef.current = null;
     }
-
     const rect = e.currentTarget.getBoundingClientRect();
     setHoveredSettingsMenu(menuId);
-    setHoveredMenuPosition({
-      top: rect.top,
-      left: rect.right
-    });
+    setHoveredMenuPosition({ top: rect.top, left: rect.right });
   };
 
-  const handleTooltipLeave = () => {
-    setHoveredTooltip(null);
-  };
-
+  const handleTooltipLeave = () => setHoveredTooltip(null);
   const handleSettingsMenuLeave = () => {
     hoverTimeoutRef.current = setTimeout(() => {
         setHoveredSettingsMenu(null);
@@ -160,35 +152,27 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
   };
 
   const navItemsRaw = [
-    { icon: LayoutDashboard, label: 'Dashboard', path: '/admin/dashboard', permission: 'dashboard:view' }, // assuming dashboard:view exists implicitly or admin:full
+    { icon: LayoutDashboard, label: 'Dashboard', path: '/admin/dashboard', permission: 'dashboard:view' },
     { icon: Building2, label: 'Gerenciar Obras', path: '/admin/obras', permission: 'obras:view' },
   ];
 
-  // Since we don't have explicit dashboard permission in the profile editor yet, assume dashboard is always visible or use 'obras:view' as proxy if preferred. 
-  // For now, let's keep dashboard visible to all or assume basic access. 
-  // Let's filter Obras based on permission.
   const navItems = navItemsRaw.filter(item => {
-      if (item.path === '/admin/dashboard') return true; // Dashboard usually public to logged users
+      if (item.path === '/admin/dashboard') return true;
       return hasPermission(item.permission.split(':')[0], 'view');
   });
 
   const handlePrimaryNavigate = (path: string) => {
     navigate(path);
-    
     if (path === '/admin/settings') {
         if (!isSettingsOpen) openSettings();
     } else {
-        if (isSettingsOpen) {
-           closeSettings();
-        }
+        if (isSettingsOpen) closeSettings();
     }
   };
 
   const handleSettingsNavigate = (path: string) => {
     navigate(path);
-    if (window.innerWidth < 768) {
-        closeSettings();
-    }
+    if (window.innerWidth < 768) closeSettings();
   };
 
   const isSettingsPath = SETTINGS_PATHS.includes(location.pathname);
@@ -204,14 +188,13 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
     fontWeight: isActive ? 600 : 400
   });
 
-  if (isPermissionsLoading) return null; // Or a loader
+  if (isPermissionsLoading) return null;
 
   return (
     <div 
       className="h-screen flex flex-row overflow-hidden transition-colors duration-300"
       style={{ backgroundColor: currentTheme.colors.background }}
     >
-      {/* MOBILE BACKDROP */}
       {isMobileOpen && (
         <div 
           className="fixed inset-0 bg-black/50 z-40 md:hidden backdrop-blur-sm"
@@ -219,7 +202,6 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
         />
       )}
 
-      {/* 1. PRIMARY SIDEBAR */}
       <aside 
         className={`
           fixed md:relative inset-y-0 left-0 z-50 flex flex-col flex-shrink-0
@@ -252,7 +234,6 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
           {isPrimaryCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
         </button>
 
-        {/* Header */}
         <div className={`h-[81px] p-6 flex items-center transition-all ${isPrimaryCollapsed ? 'md:justify-center' : 'space-x-3'} relative`}>
           <div className="absolute bottom-0 left-0 right-0 h-[1px]" style={{ backgroundColor: currentTheme.colors.sidebarText, opacity: 0.12 }} />
           <HardHat className="h-8 w-8 flex-shrink-0" style={{ color: currentTheme.colors.sidebarText }} />
@@ -262,7 +243,6 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
           </div>
         </div>
 
-        {/* Nav */}
         <nav className="p-4 space-y-2 flex-1 overflow-y-auto overflow-x-hidden no-scrollbar">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
@@ -283,49 +263,46 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
             );
           })}
 
-          <div className="pt-4 mt-2">
-            <p className={`px-4 text-xs font-bold uppercase tracking-wider mb-2 opacity-50 ${(isPrimaryCollapsed && !isMobileOpen) ? 'md:hidden' : 'block'}`}>
-              Obras Ativas
-            </p>
-            {isPrimaryCollapsed && !isMobileOpen && (
-              <div 
-                className="border-t mx-4 mb-4 md:block hidden" 
-                style={{ borderColor: currentTheme.colors.sidebarText, opacity: 0.12 }}
-              />
-            )}
-            
-            <div className="space-y-1">
-              {sites.map((site) => {
-                const isActive = location.pathname.startsWith(`/admin/obra/${site.id}`);
-                // TODO: Implement "Allowed Sites" permission check here in future
-                return (
-                  <button
-                    key={site.id}
-                    onClick={() => handlePrimaryNavigate(`/admin/obra/${site.id}`)}
-                    onMouseEnter={(e) => handleTooltip(e, site.name, 'primary')}
-                    onMouseLeave={handleTooltipLeave}
-                    className={`group relative w-full flex items-center ${isPrimaryCollapsed ? 'md:justify-center' : 'space-x-3'} px-4 py-2 rounded-lg transition-all hover:bg-white/5`}
-                    style={getSidebarItemStyle(isActive)}
-                  >
-                    <div className={`flex items-center ${isPrimaryCollapsed ? 'md:justify-center' : 'space-x-3'} w-full`}>
-                      <FolderDot className="h-4 w-4 flex-shrink-0" />
-                      <span className={`whitespace-nowrap text-sm truncate ${(isPrimaryCollapsed && !isMobileOpen) ? 'md:hidden' : 'block'}`}>{site.name}</span>
-                    </div>
-                  </button>
-                );
-              })}
+          {/* SÓ MOSTRA OBRAS SE TIVER PERMISSÃO DE VIEW OU ADMIN */}
+          {(hasPermission('obras', 'view') || isAdmin) && (
+            <div className="pt-4 mt-2">
+              <p className={`px-4 text-xs font-bold uppercase tracking-wider mb-2 opacity-50 ${(isPrimaryCollapsed && !isMobileOpen) ? 'md:hidden' : 'block'}`}>
+                Obras Ativas
+              </p>
+              {isPrimaryCollapsed && !isMobileOpen && (
+                <div 
+                  className="border-t mx-4 mb-4 md:block hidden" 
+                  style={{ borderColor: currentTheme.colors.sidebarText, opacity: 0.12 }}
+                />
+              )}
+              
+              <div className="space-y-1">
+                {sites.map((site) => {
+                  const isActive = location.pathname.startsWith(`/admin/obra/${site.id}`);
+                  return (
+                    <button
+                      key={site.id}
+                      onClick={() => handlePrimaryNavigate(`/admin/obra/${site.id}`)}
+                      onMouseEnter={(e) => handleTooltip(e, site.name, 'primary')}
+                      onMouseLeave={handleTooltipLeave}
+                      className={`group relative w-full flex items-center ${isPrimaryCollapsed ? 'md:justify-center' : 'space-x-3'} px-4 py-2 rounded-lg transition-all hover:bg-white/5`}
+                      style={getSidebarItemStyle(isActive)}
+                    >
+                      <div className={`flex items-center ${isPrimaryCollapsed ? 'md:justify-center' : 'space-x-3'} w-full`}>
+                        <FolderDot className="h-4 w-4 flex-shrink-0" />
+                        <span className={`whitespace-nowrap text-sm truncate ${(isPrimaryCollapsed && !isMobileOpen) ? 'md:hidden' : 'block'}`}>{site.name}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+                {sites.length === 0 && !isPrimaryCollapsed && (
+                   <p className="px-4 text-[10px] opacity-40 italic">Nenhuma obra vinculada.</p>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </nav>
 
-        {/* Footer (Appearance) - Only allow if user has settings access, or just appearance? 
-            Let's keep appearance available for all users, but maybe specific settings pages are restricted. 
-            However, the main "Settings" button in TopBar is restricted. 
-            If we want consistency, we should probably hide this too if they can't access settings.
-            BUT, user needs to be able to logout (inside settings).
-            Let's keep "Appearance" link but maybe rename it or ensure Settings page handles restricted access gracefully. 
-            Actually, let's keep it visible so they can Logout.
-        */}
         <div className="p-4 relative">
           <div className="absolute top-0 left-0 right-0 h-[1px]" style={{ backgroundColor: currentTheme.colors.sidebarText, opacity: 0.12 }} />
           <button
@@ -343,15 +320,10 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
         </div>
       </aside>
 
-      {/* RIGHT SIDE WRAPPER */}
       <div className="flex-1 flex flex-col h-full overflow-hidden w-full">
-        
-        {/* Pass hasSettingsAccess to TopBar to control the gear icon */}
         <TopBar onToggleSettings={toggleSettingsOpen} isSettingsOpen={isSettingsOpen} hasSettingsAccess={hasSettingsAccess} />
 
         <div className="flex-1 flex overflow-hidden relative">
-          
-          {/* 2. SECONDARY SIDEBAR (SETTINGS) */}
           <aside
             className={`
               flex-shrink-0 transition-all duration-300 flex flex-col z-20 relative
@@ -382,7 +354,6 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
 
             <div className="h-4 hidden md:block"></div>
 
-            {/* Filtered Settings Menus */}
             <div className="p-4 space-y-6">
                {settingsMenus.map(menu => (
                  <div key={menu.id} className="relative">
@@ -419,18 +390,15 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
                  </div>
                ))}
                
-               {/* Show message if no settings modules are available but panel is open (e.g. forced via mobile) */}
                {settingsMenus.length === 0 && (
                    <div className="text-center p-4 text-sm opacity-50">
-                       Nenhum módulo de configuração disponível para seu perfil.
+                       Nenhum módulo de configuração disponível.
                    </div>
                )}
             </div>
           </aside>
 
-          {/* 3. MAIN CONTENT AREA */}
           <main className={`flex-1 relative w-full h-full overflow-hidden flex flex-col ${isSettingsOpen ? 'hidden md:flex' : 'flex'}`}>
-            
             {showToggleStrip && (
               <div 
                 className="absolute top-0 bottom-0 left-0 z-40 hidden md:flex items-center justify-start cursor-pointer group"
@@ -438,18 +406,9 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
                 onClick={toggleSettingsCollapse}
                 title={isSettingsCollapsed ? "Expandir Menu" : "Reduzir Menu"}
               >
-                <div 
-                  className="absolute top-0 bottom-0 left-0 w-[1px] group-hover:w-[2px] transition-all duration-200"
-                  style={{ backgroundColor: currentTheme.colors.border }}
-                />
-                <div 
-                  className="relative w-5 h-10 flex items-center justify-center rounded-r-md shadow-sm transition-transform duration-200 group-hover:translate-x-0.5"
-                  style={{ 
-                    backgroundColor: currentTheme.colors.sidebar,
-                    boxShadow: `0 0 0 1px ${currentTheme.colors.sidebarText}1F`,
-                    color: currentTheme.colors.sidebarText
-                  }}
-                >
+                <div className="absolute top-0 bottom-0 left-0 w-[1px] group-hover:w-[2px] transition-all duration-200" style={{ backgroundColor: currentTheme.colors.border }} />
+                <div className="relative w-5 h-10 flex items-center justify-center rounded-r-md shadow-sm transition-transform duration-200 group-hover:translate-x-0.5"
+                  style={{ backgroundColor: currentTheme.colors.sidebar, boxShadow: `0 0 0 1px ${currentTheme.colors.sidebarText}1F`, color: currentTheme.colors.sidebarText }}>
                     {isSettingsCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
                 </div>
               </div>
@@ -464,27 +423,17 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
                 <div className="p-6 rounded-full mb-6" style={{ backgroundColor: `${currentTheme.colors.primary}10` }}>
                   <Settings size={48} style={{ color: currentTheme.colors.primary, opacity: 0.5 }} />
                 </div>
-                <h2 className="text-2xl font-bold mb-2" style={{ color: currentTheme.colors.text }}>
-                  Menu de Configurações
-                </h2>
-                <p className="max-w-md" style={{ color: currentTheme.colors.textSecondary }}>
-                  Selecione uma opção no menu lateral para gerenciar os cadastros e configurações do sistema.
-                </p>
-                <button 
-                   onClick={closeSettings}
-                   className="mt-8 flex items-center gap-2 text-sm hover:underline opacity-70 hover:opacity-100"
-                   style={{ color: currentTheme.colors.text }}>
-                   <ArrowLeft size={16} />
-                   Voltar para tela anterior
+                <h2 className="text-2xl font-bold mb-2" style={{ color: currentTheme.colors.text }}>Menu de Configurações</h2>
+                <p className="max-w-md" style={{ color: currentTheme.colors.textSecondary }}>Selecione uma opção lateral para gerenciar cadastros.</p>
+                <button onClick={closeSettings} className="mt-8 flex items-center gap-2 text-sm hover:underline opacity-70 hover:opacity-100" style={{ color: currentTheme.colors.text }}>
+                   <ArrowLeft size={16} /> Voltar para tela anterior
                 </button>
               </div>
             )}
           </main>
-
         </div>
       </div>
 
-      {/* Floating Menu logic - filtering applied */}
       {isSettingsOpen && isSettingsCollapsed && hoveredSettingsMenu && hoveredMenuPosition && (
         <div 
           className="fixed z-[100] rounded-lg shadow-xl overflow-hidden border animate-in fade-in slide-in-from-left-2 duration-150 hidden md:block"

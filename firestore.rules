@@ -1,106 +1,72 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     // --- FUNÇÕES AUXILIARES ---
 
-    // Verifica se o usuário está logado no Firebase Auth
     function isAuthenticated() {
+      // Nota: request.auth só é preenchido em logins via Google ou Firebase Auth direto.
+      // Usuários "Gerenciados" (E-mail/Senha manual) não preenchem este campo.
       return request.auth != null;
     }
 
-    // Busca os dados do usuário atual na coleção 'users'
-    // O documento do usuário DEVE ter o mesmo ID do UID da autenticação (request.auth.uid)
-    function getUserData() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-    }
-
-    // Busca o Perfil de Acesso atrelado ao usuário
-    function getUserProfile() {
-      let userData = getUserData();
-      return get(/databases/$(database)/documents/access_profiles/$(userData.profileId)).data;
-    }
-
-    // Verifica se o usuário tem uma permissão específica OU é admin total
+    // Verifica permissão no perfil (Apenas para usuários autenticados via Firebase)
     function hasPermission(requiredPermission) {
-      let profile = getUserProfile();
+      let userData = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      let profile = get(/databases/$(database)/documents/access_profiles/$(userData.profileId)).data;
       return 'admin:full' in profile.permissions || requiredPermission in profile.permissions;
-    }
-
-    // Verifica se o usuário tem acesso apenas de leitura (view)
-    function canView(module) {
-      return hasPermission(module + ':view');
-    }
-
-    // Verifica se o usuário pode criar ou editar
-    function canWrite(module) {
-      return hasPermission(module + ':create');
-    }
-
-    // Verifica se o usuário pode excluir
-    function canDelete(module) {
-      return hasPermission(module + ':delete');
     }
 
     // --- REGRAS POR COLEÇÃO ---
 
-    // 1. USUÁRIOS
-    // - Qualquer um autenticado pode ler (para listar usuários)
-    // - Apenas quem tem permissão 'acesso_usuarios:create' pode criar/editar
-    // - Usuário pode ler o próprio perfil
     match /users/{userId} {
-      allow read: if isAuthenticated();
+      // Permite leitura pública para login e exibição de perfis, 
+      // mas escrita apenas para administradores autenticados.
+      allow read: if true; 
       allow write: if isAuthenticated() && hasPermission('acesso_usuarios:create');
-      // Permite que o próprio usuário edite dados básicos (opcional)
-      allow update: if isAuthenticated() && request.auth.uid == userId; 
+      allow update: if isAuthenticated() && (request.auth.uid == userId || hasPermission('acesso_usuarios:create')); 
     }
 
-    // 2. PERFIS DE ACESSO
-    // - Leitura aberta para autenticados (necessário para checar permissões)
-    // - Escrita restrita
     match /access_profiles/{profileId} {
-      allow read: if isAuthenticated(); 
+      // Leitura pública para que o frontend carregue as permissões do usuário logado manual
+      allow read: if true; 
       allow write: if isAuthenticated() && hasPermission('acesso_perfis:create');
       allow delete: if isAuthenticated() && hasPermission('acesso_perfis:delete');
     }
 
-    // 3. INSUMOS (Inventário Global)
     match /inventory/{itemId} {
-      allow read: if isAuthenticated() && canView('orcamento_insumos');
-      allow create, update: if isAuthenticated() && canWrite('orcamento_insumos');
-      allow delete: if isAuthenticated() && canDelete('orcamento_insumos');
+      allow read: if true; 
+      allow create, update: if isAuthenticated() && hasPermission('orcamento_insumos:create');
+      allow delete: if isAuthenticated() && hasPermission('orcamento_insumos:delete');
     }
 
-    // 4. UNIDADES DE MEDIDA
     match /measurement_units/{unitId} {
-      allow read: if isAuthenticated() && canView('orcamento_unidades');
-      allow write: if isAuthenticated() && canWrite('orcamento_unidades');
-      allow delete: if isAuthenticated() && canDelete('orcamento_unidades');
+      allow read: if true;
+      allow write: if isAuthenticated() && hasPermission('orcamento_unidades:create');
+      allow delete: if isAuthenticated() && hasPermission('orcamento_unidades:delete');
     }
 
-    // 5. CATEGORIAS
     match /item_categories/{catId} {
-      allow read: if isAuthenticated() && canView('orcamento_categorias');
-      allow write: if isAuthenticated() && canWrite('orcamento_categorias');
-      allow delete: if isAuthenticated() && canDelete('orcamento_categorias');
+      allow read: if true;
+      allow write: if isAuthenticated() && hasPermission('orcamento_categorias:create');
+      allow delete: if isAuthenticated() && hasPermission('orcamento_categorias:delete');
     }
 
-    // 6. OBRAS (Construction Sites)
     match /construction_sites/{siteId} {
-      allow read: if isAuthenticated() && canView('obras'); 
-      allow create, update: if isAuthenticated() && canWrite('obras');
-      allow delete: if isAuthenticated() && canDelete('obras');
+      // Permite que qualquer um veja a lista de obras, 
+      // mas o filtro de qual obra aparece é feito no frontend pelo PermissionsContext
+      allow read: if true; 
+      allow create, update: if isAuthenticated() && hasPermission('obras:create');
+      allow delete: if isAuthenticated() && hasPermission('obras:delete');
 
-      // Subcoleção: Estoque da Obra
       match /inventory/{siteItemId} {
-        // Herda permissão de visualização da obra, mas escrita depende da lógica de gestão
-        allow read: if isAuthenticated() && canView('obras');
-        allow write: if isAuthenticated() && canWrite('obras'); // Simplificado: quem edita obra mexe no estoque
+        allow read: if true;
+        allow write: if isAuthenticated() && hasPermission('obras:create');
         
-        // Subcoleção: Movimentações (Histórico)
         match /movements/{movId} {
-           allow read: if isAuthenticated() && canView('obras');
-           allow create: if isAuthenticated(); // Qualquer um com acesso à obra pode registrar movimento se a UI permitir
+           allow read: if true;
+           allow create: if true; // Permite registrar movimentação (será validado no service)
         }
       }
     }

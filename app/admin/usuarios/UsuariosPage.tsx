@@ -1,9 +1,10 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import { userService } from '../../../services/userService';
 import { accessProfileService } from '../../../services/accessProfileService';
 import { authService } from '../../../services/authService';
 import { User, AccessProfile } from '../../../types';
-import { Plus, Search, Users, Trash2, Edit, Mail, AlertTriangle, ChevronDown, Shield, X } from 'lucide-react';
+import { Plus, Search, Users, Trash2, Edit, Mail, AlertTriangle, ChevronDown, Shield, X, Lock, Info } from 'lucide-react';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { Button } from '../../../components/ui/Button';
 import { BottomActionsBar } from '../../../components/layout/BottomActionsBar';
@@ -37,6 +38,7 @@ const UsuariosPage: React.FC = () => {
   const [formData, setFormData] = useState<Partial<User>>({ 
     name: '',
     email: '', 
+    password: '',
     role: 'operario',
     profileId: ''
   });
@@ -84,6 +86,7 @@ const UsuariosPage: React.FC = () => {
     setFormData({
        name: user.name,
        email: user.email,
+       password: user.password || '',
        role: user.role,
        profileId: user.profileId
     });
@@ -132,9 +135,12 @@ const UsuariosPage: React.FC = () => {
 
     setIsLoading(true);
     try {
-      // Logic to sync legacy role with selected profile if needed
-      // For now we keep 'operario' as default legacy role but rely on profileId
       const payload = { ...formData };
+      
+      // Se a senha estiver vazia, removemos do payload para não sobrescrever com string vazia caso exista
+      if (!payload.password) {
+        delete payload.password;
+      }
 
       if (editingId) {
          await userService.update(editingId, payload);
@@ -153,7 +159,7 @@ const UsuariosPage: React.FC = () => {
 
   const handleCloseModal = () => {
      setIsModalOpen(false);
-     setFormData({ name: '', email: '', role: 'operario', profileId: '' });
+     setFormData({ name: '', email: '', password: '', role: 'operario', profileId: '' });
      setProfileSearch('');
      setEditingId(null);
      setShowProfileOptions(false);
@@ -201,12 +207,10 @@ const UsuariosPage: React.FC = () => {
     setSelectedIds(newSelection);
   };
 
-  // Opens the modal instead of using window.confirm directly
   const handleBulkDeleteClick = () => {
     const currentUser = authService.getCurrentUser();
     const idsToDelete = Array.from(selectedIds) as string[];
     
-    // Filter out unsafe deletions (only self)
     const safeToDeleteIds = idsToDelete.filter((id) => {
         const u = users.find(user => user.id === id);
         if (!u) return false;
@@ -220,16 +224,13 @@ const UsuariosPage: React.FC = () => {
 
     if (safeToDeleteIds.length === 0) return;
 
-    // Open modal instead of confirm
     setIsBulkDeleteModalOpen(true);
   };
 
-  // Actually performs the deletion
   const confirmBulkDelete = async () => {
     const currentUser = authService.getCurrentUser();
     const idsToDelete = Array.from(selectedIds) as string[];
     
-    // Recalculate safe items inside valid action
     const safeToDeleteIds = idsToDelete.filter((id) => {
         const u = users.find(user => user.id === id);
         if (!u) return false;
@@ -268,7 +269,6 @@ const UsuariosPage: React.FC = () => {
 
   const isAllSelected = currentData.length > 0 && currentData.every(item => selectedIds.has(item.id!));
 
-  // --- Styles ---
   const baseInputClass = "w-full px-3 py-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 transition-colors";
   const dynamicInputStyle = { 
     backgroundColor: currentTheme.isDark ? 'rgba(0,0,0,0.2)' : '#ffffff', 
@@ -276,7 +276,6 @@ const UsuariosPage: React.FC = () => {
     color: currentTheme.colors.text
   };
 
-  // Filter profiles for Combobox
   const filteredProfiles = profiles.filter(p => 
     p.name.toLowerCase().includes(profileSearch.toLowerCase())
   );
@@ -309,7 +308,7 @@ const UsuariosPage: React.FC = () => {
         {hasPermission('acesso_usuarios', 'create') && (
           <Button 
             onClick={() => {
-              setFormData({ name: '', email: '', role: 'operario', profileId: '' });
+              setFormData({ name: '', email: '', password: '', role: 'operario', profileId: '' });
               setProfileSearch('');
               setEditingId(null);
               setIsModalOpen(true);
@@ -357,7 +356,6 @@ const UsuariosPage: React.FC = () => {
                       ? (currentTheme.isDark ? 'rgba(59, 130, 246, 0.2)' : '#eff6ff')
                       : index % 2 === 0 ? 'transparent' : (currentTheme.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)');
                   
-                  // Resolve profile name
                   const profileName = profiles.find(p => p.id === item.profileId)?.name || item.role;
 
                   return (
@@ -434,8 +432,6 @@ const UsuariosPage: React.FC = () => {
         onPageChange={setCurrentPage}
         onImport={() => alert('Importação indisponível.')}
         onExport={handleExport}
-
-        // Bulk props
         selectedCount={selectedIds.size}
         onDeleteSelected={hasPermission('acesso_usuarios', 'delete') ? handleBulkDeleteClick : undefined}
         onCancelSelection={() => setSelectedIds(new Set())}
@@ -444,7 +440,7 @@ const UsuariosPage: React.FC = () => {
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-2xl shadow-xl border p-6 mx-4" style={{ backgroundColor: currentTheme.colors.card, borderColor: currentTheme.colors.border }}>
+          <div className="w-full max-w-lg rounded-2xl shadow-xl border p-6 mx-4 max-h-[90vh] overflow-y-auto" style={{ backgroundColor: currentTheme.colors.card, borderColor: currentTheme.colors.border }}>
              <h2 className="text-lg font-bold mb-4" style={{ color: currentTheme.colors.text }}>
                 {editingId ? 'Editar Usuário' : 'Novo Usuário'}
              </h2>
@@ -472,8 +468,27 @@ const UsuariosPage: React.FC = () => {
                      placeholder="Ex: joao@empresa.com"
                    />
                 </div>
+
+                {/* NOVO CAMPO: SENHA PROVISÓRIA */}
+                <div>
+                   <label className="block text-sm mb-1" style={{ color: currentTheme.colors.textSecondary }}>Senha Provisória (Opcional)</label>
+                   <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 opacity-40" style={{ color: currentTheme.colors.text }} />
+                      <input 
+                        type="text"
+                        value={formData.password}
+                        onChange={e => setFormData({...formData, password: e.target.value})}
+                        className={`${baseInputClass} pl-10`}
+                        style={dynamicInputStyle}
+                        placeholder="Deixe vazio para login Google apenas"
+                      />
+                   </div>
+                   <p className="mt-1.5 text-[10px] flex items-start gap-1.5 opacity-70" style={{ color: currentTheme.colors.textSecondary }}>
+                      <Info size={12} className="mt-0.5 flex-shrink-0" />
+                      <span>Se deixado em branco, o usuário só poderá acessar via <b>Login Google</b>. Caso preenchido, ele poderá usar E-mail e Senha.</span>
+                   </p>
+                </div>
                 
-                {/* Profile Search Combobox */}
                 <div className="relative" ref={profileRef}>
                     <label className="block text-sm mb-1" style={{ color: currentTheme.colors.textSecondary }}>Perfil de Acesso / Função *</label>
                     <div className="relative">
@@ -482,7 +497,6 @@ const UsuariosPage: React.FC = () => {
                             onChange={(e) => {
                                 setProfileSearch(e.target.value);
                                 setShowProfileOptions(true);
-                                // Clear ID if user types something new until they select
                                 if (formData.profileId) {
                                     setFormData(prev => ({ ...prev, profileId: '' }));
                                 }
@@ -543,7 +557,6 @@ const UsuariosPage: React.FC = () => {
         </div>
       )}
 
-      {/* Delete Confirmation Modal (Single) */}
       {deleteId && (
         <div 
           className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
@@ -587,7 +600,6 @@ const UsuariosPage: React.FC = () => {
         </div>
       )}
 
-      {/* NEW: Bulk Delete Confirmation Modal */}
       {isBulkDeleteModalOpen && (
         <div 
           className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
