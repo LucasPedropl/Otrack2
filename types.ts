@@ -43,6 +43,7 @@ export interface SiteInventoryItem {
   averagePrice?: number;
   minThreshold: number;
   siteId: string;
+  isTool?: boolean; // Novo campo: Marca manualmente se é ferramenta
   updatedAt: Date;
 }
 

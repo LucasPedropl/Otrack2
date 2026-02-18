@@ -5,7 +5,7 @@ import { useTheme } from '../../../../contexts/ThemeContext';
 import { siteInventoryService } from '../../../../services/siteInventoryService';
 import { toolService } from '../../../../services/toolService';
 import { SiteInventoryItem, ToolLoan } from '../../../../types';
-import { Search, Hammer, User, ArrowRight, CheckCircle, RotateCcw, AlertCircle, Filter, X } from 'lucide-react';
+import { Search, Hammer, User, ArrowRight, CheckCircle, RotateCcw, AlertCircle, Filter, X, Clock } from 'lucide-react';
 import { Button } from '../../../../components/ui/Button';
 
 // Categorias padrão que consideramos "Ferramentas" para o filtro inteligente
@@ -25,7 +25,6 @@ const ObraTools: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   
-  // Available Categories for Dropdown
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
 
   // Modal Loan
@@ -47,12 +46,10 @@ const ObraTools: React.FC = () => {
       setActiveLoans(loans);
       setLoanHistory(history);
 
-      // Extract categories
+      // Extract categories for dropdown
       const cats = Array.from(new Set(items.map(i => i.category))).sort();
       setAvailableCategories(cats);
 
-      // Smart Select: Se não tiver filtro selecionado, tenta pré-selecionar categorias de ferramentas?
-      // Melhor: Vamos filtrar na renderização se o usuário ativar "Apenas Ferramentas"
     } catch (error) {
       console.error(error);
     } finally {
@@ -70,6 +67,11 @@ const ObraTools: React.FC = () => {
     return TOOL_KEYWORDS.some(keyword => lower.includes(keyword));
   };
 
+  // Verifica se o item é ferramenta (ou pela categoria ou pela flag manual)
+  const isTool = (item: SiteInventoryItem) => {
+    return item.isTool || isToolCategory(item.category);
+  };
+
   // Calcula estoque disponível (Total - Emprestado)
   const getAvailableQuantity = (item: SiteInventoryItem) => {
     const borrowed = activeLoans
@@ -77,6 +79,16 @@ const ObraTools: React.FC = () => {
       .reduce((acc, curr) => acc + curr.quantity, 0);
     return Math.max(0, item.quantity - borrowed);
   };
+
+  // Count overdue (considerando que deveriam devolver hoje, ou seja, qualquer empréstimo aberto antes de hoje ou apenas aberto)
+  // Como não temos "data prevista", vamos considerar "Em Atraso" ferramentas retiradas há mais de 24h
+  const overdueLoans = activeLoans.filter(l => {
+    const diffTime = Math.abs(new Date().getTime() - l.loanDate.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+    return diffDays > 1; // Mais de 1 dia com a ferramenta
+  });
+
+  const loansNotReturnedToday = activeLoans.length; // Quantidade total não devolvida
 
   // -- Handlers --
 
@@ -126,31 +138,14 @@ const ObraTools: React.FC = () => {
     }
   };
 
-  // Filter Logic
-  const filteredInventory = inventory.filter(item => {
-    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = categoryFilter ? item.category === categoryFilter : isToolCategory(item.category); // Default to tool filter if none selected?
-    // Let's make the filter explicit:
-    // If categoryFilter is set, use it.
-    // If NOT set, show ALL (or use a toggle for "Show only tools")? 
-    // The prompt says "I'm assuming it has to be by category".
-    // Let's default to SHOW ALL but suggest filtering.
-    
-    if (categoryFilter) return matchesSearch && item.category === categoryFilter;
-    
-    // If no filter, show items that match search. If search empty, maybe show tool categories by default?
-    // Let's show everything matching search, but add a "Tools Only" quick toggle visually or just dropdown.
-    // For now, simple dropdown filter.
-    return matchesSearch;
-  });
-
-  // Simplified: Filter by "Tools" checkbox?
+  // Simplified: Filter by "Tools" checkbox? Default true
   const [onlyTools, setOnlyTools] = useState(true);
   
   const displayInventory = inventory.filter(item => {
      const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
      const matchesCat = categoryFilter ? item.category === categoryFilter : true;
-     const matchesToolType = onlyTools ? isToolCategory(item.category) : true;
+     // Lógica combinada: Se "apenas ferramentas" estiver marcado, mostra se a categoria bate OU se isTool for true
+     const matchesToolType = onlyTools ? isTool(item) : true;
      return matchesSearch && matchesCat && matchesToolType;
   });
 
@@ -178,6 +173,14 @@ const ObraTools: React.FC = () => {
              <div>
                 <p className="text-sm opacity-60" style={{ color: currentTheme.colors.textSecondary }}>Empréstimos Ativos</p>
                 <p className="text-xl font-bold" style={{ color: currentTheme.colors.text }}>{activeLoans.length}</p>
+             </div>
+          </div>
+          {/* Novo Card */}
+          <div className="p-4 rounded-xl border flex items-center gap-4" style={{ backgroundColor: currentTheme.colors.card, borderColor: currentTheme.colors.border }}>
+             <div className="p-3 rounded-full bg-red-100 text-red-600"><Clock size={24} /></div>
+             <div>
+                <p className="text-sm opacity-60" style={{ color: currentTheme.colors.textSecondary }}>Pendentes de Devolução</p>
+                <p className="text-xl font-bold" style={{ color: currentTheme.colors.text }}>{loansNotReturnedToday}</p>
              </div>
           </div>
        </div>
@@ -249,7 +252,11 @@ const ObraTools: React.FC = () => {
                          <div>
                             <div className="flex justify-between items-start mb-2">
                                <h4 className="font-bold" style={{ color: currentTheme.colors.text }}>{item.name}</h4>
-                               <span className="text-xs px-2 py-0.5 rounded border" style={{ color: currentTheme.colors.textSecondary, borderColor: currentTheme.colors.border }}>{item.category}</span>
+                               {item.isTool ? 
+                                 <span className="text-xs px-2 py-0.5 rounded border bg-blue-500/10 border-blue-500/30 text-blue-500">Ferramenta</span> 
+                                 : 
+                                 <span className="text-xs px-2 py-0.5 rounded border" style={{ color: currentTheme.colors.textSecondary, borderColor: currentTheme.colors.border }}>{item.category}</span>
+                               }
                             </div>
                             <div className="flex justify-between text-sm mb-4">
                                <span style={{ color: currentTheme.colors.textSecondary }}>Total: {item.quantity} {item.unit}</span>
@@ -282,10 +289,18 @@ const ObraTools: React.FC = () => {
                 </div>
              ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                   {activeLoans.map(loan => (
-                      <div key={loan.id} className="p-4 rounded-xl border flex justify-between items-center" style={{ backgroundColor: currentTheme.colors.card, borderColor: currentTheme.colors.border }}>
+                   {activeLoans.map(loan => {
+                      const diffTime = Math.abs(new Date().getTime() - loan.loanDate.getTime());
+                      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+                      const isOverdue = diffDays > 1;
+
+                      return (
+                      <div key={loan.id} className={`p-4 rounded-xl border flex justify-between items-center ${isOverdue ? 'border-red-500/30 bg-red-500/5' : ''}`} style={{ backgroundColor: isOverdue ? undefined : currentTheme.colors.card, borderColor: isOverdue ? undefined : currentTheme.colors.border }}>
                          <div>
-                            <p className="font-bold" style={{ color: currentTheme.colors.text }}>{loan.itemName}</p>
+                            <div className="flex items-center gap-2">
+                                <p className="font-bold" style={{ color: currentTheme.colors.text }}>{loan.itemName}</p>
+                                {isOverdue && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 rounded uppercase font-bold">Atrasado</span>}
+                            </div>
                             <div className="flex items-center gap-2 text-sm mt-1" style={{ color: currentTheme.colors.textSecondary }}>
                                <User size={14} />
                                <span>Com: <b>{loan.workerName}</b></span>
@@ -299,7 +314,7 @@ const ObraTools: React.FC = () => {
                             <RotateCcw size={16} className="mr-2" /> Devolver
                          </Button>
                       </div>
-                   ))}
+                   )})}
                 </div>
              )}
           </div>

@@ -1,10 +1,9 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTheme } from '../../../../contexts/ThemeContext';
 import { rentedEquipmentService } from '../../../../services/rentedEquipmentService';
 import { RentedEquipment } from '../../../../types';
-import { Search, Plus, Truck, Calendar, Camera, X, Check, ArrowRight, Image as ImageIcon } from 'lucide-react';
+import { Search, Plus, Truck, Calendar, Camera, X, Check, ArrowRight, Image as ImageIcon, AlertTriangle } from 'lucide-react';
 import { Button } from '../../../../components/ui/Button';
 
 const ObraRented: React.FC = () => {
@@ -31,7 +30,13 @@ const ObraRented: React.FC = () => {
     setIsLoading(true);
     try {
       const data = await rentedEquipmentService.getAll(siteId);
-      setEquipmentList(data);
+      // Ordenar: Ativos primeiro, depois por data de entrada
+      const sorted = data.sort((a, b) => {
+          if (a.status === 'ACTIVE' && b.status !== 'ACTIVE') return -1;
+          if (a.status !== 'ACTIVE' && b.status === 'ACTIVE') return 1;
+          return b.entryDate.getTime() - a.entryDate.getTime();
+      });
+      setEquipmentList(sorted);
     } catch (error) {
       console.error(error);
     } finally {
@@ -137,77 +142,61 @@ const ObraRented: React.FC = () => {
          </Button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-         {equipmentList.map(eq => (
-             <div key={eq.id} className="rounded-xl border overflow-hidden" style={{ backgroundColor: currentTheme.colors.card, borderColor: currentTheme.colors.border }}>
-                 {/* Header */}
-                 <div className="p-4 border-b flex justify-between items-start" style={{ borderColor: currentTheme.colors.border, backgroundColor: currentTheme.isDark ? 'rgba(255,255,255,0.02)' : '#f9fafb' }}>
-                    <div className="flex gap-3">
-                        <div className="p-3 bg-white rounded-lg shadow-sm border h-fit">
-                           <Truck className="text-blue-600" />
-                        </div>
-                        <div>
-                            <h3 className="font-bold text-lg" style={{ color: currentTheme.colors.text }}>{eq.name}</h3>
-                            <p className="text-sm opacity-70" style={{ color: currentTheme.colors.text }}>Fornecedor: {eq.supplier}</p>
-                        </div>
-                    </div>
-                    <span className={`px-2 py-1 text-xs font-bold rounded ${eq.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
-                        {eq.status === 'ACTIVE' ? 'EM OBRA' : 'DEVOLVIDO'}
-                    </span>
-                 </div>
-                 
-                 {/* Body */}
-                 <div className="p-4 space-y-4">
-                     {/* Timeline */}
-                     <div className="flex items-center gap-4 text-sm relative">
-                        {/* Entry */}
-                        <div className="flex-1">
-                            <p className="text-xs font-bold uppercase opacity-50 mb-1" style={{ color: currentTheme.colors.textSecondary }}>Entrada</p>
-                            <div className="flex items-center gap-2" style={{ color: currentTheme.colors.text }}>
-                                <Calendar size={14} className="text-green-500" />
-                                {eq.entryDate.toLocaleDateString()}
-                            </div>
-                            <div className="mt-2 flex gap-1 overflow-x-auto no-scrollbar">
-                                {eq.entryPhotos.length > 0 ? eq.entryPhotos.map((p, i) => (
-                                    <img key={i} src={p} className="w-10 h-10 object-cover rounded border" alt="Entrada" />
-                                )) : <span className="text-xs opacity-50 italic">Sem fotos</span>}
-                            </div>
-                        </div>
-
-                        {/* Arrow */}
-                        <ArrowRight className="opacity-30" />
-
-                        {/* Exit */}
-                        <div className="flex-1 text-right">
-                            <p className="text-xs font-bold uppercase opacity-50 mb-1" style={{ color: currentTheme.colors.textSecondary }}>Devolução</p>
-                            {eq.status === 'ACTIVE' ? (
-                                <Button onClick={() => openExitModal(eq)} className="h-8 text-xs bg-orange-500 text-white hover:bg-orange-600">
-                                    Registrar Saída
-                                </Button>
-                            ) : (
-                                <>
-                                    <div className="flex items-center gap-2 justify-end" style={{ color: currentTheme.colors.text }}>
-                                        {eq.exitDate?.toLocaleDateString()}
-                                        <Calendar size={14} className="text-red-500" />
-                                    </div>
-                                    <div className="mt-2 flex gap-1 justify-end overflow-x-auto no-scrollbar">
-                                        {eq.exitPhotos && eq.exitPhotos.length > 0 ? eq.exitPhotos.map((p, i) => (
-                                            <img key={i} src={p} className="w-10 h-10 object-cover rounded border" alt="Saída" />
-                                        )) : <span className="text-xs opacity-50 italic">Sem fotos</span>}
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                     </div>
-
-                     {eq.description && (
-                         <div className="pt-2 border-t mt-2" style={{ borderColor: currentTheme.colors.border }}>
-                             <p className="text-xs opacity-70" style={{ color: currentTheme.colors.text }}>Obs: {eq.description}</p>
-                         </div>
-                     )}
-                 </div>
-             </div>
-         ))}
+      <div className="overflow-hidden rounded-xl border" style={{ borderColor: currentTheme.colors.border, backgroundColor: currentTheme.colors.card }}>
+         <table className="w-full text-left text-sm">
+            <thead style={{ backgroundColor: currentTheme.isDark ? 'rgba(255,255,255,0.05)' : '#f9fafb' }}>
+               <tr>
+                  <th className="p-4 font-medium" style={{ color: currentTheme.colors.textSecondary }}>Status</th>
+                  <th className="p-4 font-medium" style={{ color: currentTheme.colors.textSecondary }}>Equipamento / Fornecedor</th>
+                  <th className="p-4 font-medium" style={{ color: currentTheme.colors.textSecondary }}>Data Entrada</th>
+                  <th className="p-4 font-medium" style={{ color: currentTheme.colors.textSecondary }}>Data Saída</th>
+                  <th className="p-4 font-medium" style={{ color: currentTheme.colors.textSecondary }}>Fotos</th>
+                  <th className="p-4 font-medium text-right" style={{ color: currentTheme.colors.textSecondary }}>Ações</th>
+               </tr>
+            </thead>
+            <tbody className="divide-y" style={{ borderColor: currentTheme.colors.border }}>
+               {equipmentList.length === 0 ? (
+                   <tr><td colSpan={6} className="p-8 text-center opacity-50">Nenhum equipamento registrado.</td></tr>
+               ) : (
+                   equipmentList.map(eq => (
+                       <tr key={eq.id} style={{ backgroundColor: currentTheme.colors.card }}>
+                           <td className="p-4">
+                               <span className={`px-2 py-1 text-xs font-bold rounded inline-flex items-center gap-1 ${eq.status === 'ACTIVE' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                                   {eq.status === 'ACTIVE' ? <AlertTriangle size={12} /> : <Check size={12} />}
+                                   {eq.status === 'ACTIVE' ? 'NA OBRA' : 'DEVOLVIDO'}
+                               </span>
+                           </td>
+                           <td className="p-4">
+                               <p className="font-bold" style={{ color: currentTheme.colors.text }}>{eq.name}</p>
+                               <p className="text-xs opacity-70" style={{ color: currentTheme.colors.textSecondary }}>{eq.supplier}</p>
+                               {eq.description && <p className="text-xs italic mt-1" style={{ color: currentTheme.colors.textSecondary }}>"{eq.description}"</p>}
+                           </td>
+                           <td className="p-4" style={{ color: currentTheme.colors.text }}>{eq.entryDate.toLocaleDateString()}</td>
+                           <td className="p-4" style={{ color: currentTheme.colors.text }}>{eq.exitDate ? eq.exitDate.toLocaleDateString() : '-'}</td>
+                           <td className="p-4">
+                               <div className="flex -space-x-2">
+                                   {[...eq.entryPhotos, ...(eq.exitPhotos || [])].slice(0, 3).map((p, i) => (
+                                       <img key={i} src={p} className="w-8 h-8 rounded-full border-2 object-cover" style={{ borderColor: currentTheme.colors.card }} />
+                                   ))}
+                                   {[...eq.entryPhotos, ...(eq.exitPhotos || [])].length > 3 && (
+                                       <div className="w-8 h-8 rounded-full border-2 flex items-center justify-center text-[10px] bg-gray-200 text-gray-600" style={{ borderColor: currentTheme.colors.card }}>
+                                           +{ [...eq.entryPhotos, ...(eq.exitPhotos || [])].length - 3 }
+                                       </div>
+                                   )}
+                               </div>
+                           </td>
+                           <td className="p-4 text-right">
+                               {eq.status === 'ACTIVE' && (
+                                   <Button onClick={() => openExitModal(eq)} variant="secondary" className="text-xs h-8 border-orange-200 hover:bg-orange-50 text-orange-600">
+                                       Devolver
+                                   </Button>
+                               )}
+                           </td>
+                       </tr>
+                   ))
+               )}
+            </tbody>
+         </table>
       </div>
 
       {/* MODAL */}

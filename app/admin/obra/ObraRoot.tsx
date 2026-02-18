@@ -4,7 +4,7 @@ import { useParams, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { constructionService } from '../../../services/constructionService';
 import { ConstructionSite } from '../../../types';
-import { Building2, Settings, LayoutDashboard, Package, ArrowLeftRight, Loader2, Calendar, MapPin, Hammer, Truck } from 'lucide-react';
+import { Building2, Settings, LayoutDashboard, Package, ArrowLeftRight, Loader2, Hammer, Truck } from 'lucide-react';
 
 const ObraRoot: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -62,7 +62,7 @@ const ObraRoot: React.FC = () => {
       >
         {/* Main Title Row */}
         <div className="px-6 py-6 flex flex-col md:flex-row md:items-start justify-between gap-4">
-            <div className="flex items-start gap-4">
+            <div className="flex items-center gap-4">
                {/* Icon Box */}
                <div 
                   className="p-3 rounded-xl shadow-sm border"
@@ -76,20 +76,9 @@ const ObraRoot: React.FC = () => {
 
                {/* Text Info */}
                <div>
-                  <h1 className="text-2xl font-bold leading-tight mb-1" style={{ color: currentTheme.colors.text }}>
+                  <h1 className="text-2xl font-bold leading-tight" style={{ color: currentTheme.colors.text }}>
                     {site.name}
                   </h1>
-                  <div className="flex flex-wrap items-center gap-4 text-sm opacity-70" style={{ color: currentTheme.colors.textSecondary }}>
-                     <div className="flex items-center gap-1.5">
-                        <Calendar size={14} />
-                        <span>Iniciada em {site.createdAt ? new Date(site.createdAt).toLocaleDateString('pt-BR') : '-'}</span>
-                     </div>
-                     <span className="hidden sm:inline">•</span>
-                     <div className="flex items-center gap-1.5">
-                        <MapPin size={14} />
-                        <span>Localização Principal</span>
-                     </div>
-                  </div>
                </div>
             </div>
 

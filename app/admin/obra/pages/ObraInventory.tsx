@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTheme } from '../../../../contexts/ThemeContext';
@@ -5,7 +6,7 @@ import { inventoryService } from '../../../../services/inventoryService'; // Glo
 import { siteInventoryService } from '../../../../services/siteInventoryService'; // Site Specific
 import { authService } from '../../../../services/authService';
 import { InventoryItem, SiteInventoryItem, StockMovement } from '../../../../types';
-import { Plus, Search, Package, Trash2, Edit, X, AlertTriangle, Eye, MinusCircle, PlusCircle, History, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
+import { Plus, Search, Package, Trash2, Edit, X, AlertTriangle, Eye, MinusCircle, PlusCircle, History, ArrowUpRight, ArrowDownLeft, Hammer } from 'lucide-react';
 import { Button } from '../../../../components/ui/Button';
 import { BottomActionsBar } from '../../../../components/layout/BottomActionsBar';
 
@@ -46,7 +47,8 @@ const ObraInventory: React.FC = () => {
     originalItemId: '',
     quantity: 0,
     minThreshold: 0,
-    averagePrice: 0
+    averagePrice: 0,
+    isTool: false
   });
 
   // Selected global item details for display in modal
@@ -95,7 +97,8 @@ const ObraInventory: React.FC = () => {
         await siteInventoryService.updateItem(siteId, editingId, {
             quantity: formData.quantity,
             minThreshold: formData.minThreshold,
-            averagePrice: formData.averagePrice
+            averagePrice: formData.averagePrice,
+            isTool: formData.isTool
         });
       } else {
         // Add new item
@@ -120,7 +123,8 @@ const ObraInventory: React.FC = () => {
             category: selectedGlobalItem.category,
             quantity: formData.quantity,
             minThreshold: formData.minThreshold,
-            averagePrice: formData.averagePrice
+            averagePrice: formData.averagePrice,
+            isTool: formData.isTool
         });
       }
       
@@ -147,10 +151,21 @@ const ObraInventory: React.FC = () => {
         originalItemId: item.originalItemId,
         quantity: item.quantity,
         minThreshold: item.minThreshold,
-        averagePrice: item.averagePrice || 0
+        averagePrice: item.averagePrice || 0,
+        isTool: item.isTool || false
     });
     setEditingId(item.id!);
     setIsModalOpen(true);
+  };
+
+  const handleToggleTool = async (item: SiteInventoryItem) => {
+    if (!siteId) return;
+    try {
+        await siteInventoryService.updateItem(siteId, item.id!, { isTool: !item.isTool });
+        fetchData();
+    } catch (error) {
+        console.error(error);
+    }
   };
 
   const handleDelete = async (itemId: string) => {
@@ -221,17 +236,17 @@ const ObraInventory: React.FC = () => {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setEditingId(null);
-    setFormData({ originalItemId: '', quantity: 0, minThreshold: 0, averagePrice: 0 });
+    setFormData({ originalItemId: '', quantity: 0, minThreshold: 0, averagePrice: 0, isTool: false });
     setSelectedGlobalItem(null);
   };
 
   const handleExport = () => {
-    const headers = ["Insumo", "Categoria", "Quantidade", "Unidade", "Preço Médio", "Total", "Estoque Mínimo"];
+    const headers = ["Insumo", "Categoria", "Quantidade", "Unidade", "Preço Médio", "Total", "Estoque Mínimo", "É Ferramenta"];
     const csvContent = "data:text/csv;charset=utf-8," 
        + headers.join(",") + "\n" 
        + siteItems.map(i => {
            const total = (i.quantity * (i.averagePrice || 0)).toFixed(2);
-           return `${i.name},${i.category},${i.quantity},${i.unit},${i.averagePrice || 0},${total},${i.minThreshold}`;
+           return `${i.name},${i.category},${i.quantity},${i.unit},${i.averagePrice || 0},${total},${i.minThreshold},${i.isTool ? 'Sim' : 'Não'}`;
        }).join("\n");
     
     const encodedUri = encodeURI(csvContent);
@@ -312,10 +327,10 @@ const ObraInventory: React.FC = () => {
             <thead>
               <tr style={{ backgroundColor: currentTheme.isDark ? 'rgba(255,255,255,0.05)' : '#e5e7eb' }}>
                 <th className="p-4 font-medium" style={{ color: currentTheme.colors.textSecondary }}>Insumo</th>
+                <th className="p-4 font-medium text-center" style={{ color: currentTheme.colors.textSecondary }}>Ferramenta?</th>
                 <th className="p-4 font-medium text-center" style={{ color: currentTheme.colors.textSecondary }}>Movimentações</th>
                 <th className="p-4 font-medium text-center" style={{ color: currentTheme.colors.textSecondary }}>Ajuste Rápido</th>
                 <th className="p-4 font-medium text-right" style={{ color: currentTheme.colors.textSecondary }}>Qtd. em Obra</th>
-                <th className="p-4 font-medium text-right" style={{ color: currentTheme.colors.textSecondary }}>Preço Médio</th>
                 <th className="p-4 font-medium text-right" style={{ color: currentTheme.colors.textSecondary }}>Total</th>
                 <th className="p-4 font-medium w-24 text-center" style={{ color: currentTheme.colors.textSecondary }}>Ações</th>
               </tr>
@@ -342,6 +357,17 @@ const ObraInventory: React.FC = () => {
                         <td className="p-4" style={{ color: currentTheme.colors.text }}>
                             <div className="font-medium">{item.name}</div>
                             <div className="text-xs opacity-60">{item.category}</div>
+                        </td>
+
+                        {/* Toggle Tool */}
+                        <td className="p-4 text-center">
+                            <button 
+                                onClick={() => handleToggleTool(item)}
+                                className={`p-2 rounded-full transition-colors ${item.isTool ? 'text-blue-500 bg-blue-500/10' : 'text-gray-400 hover:text-blue-500 hover:bg-gray-500/10'}`}
+                                title={item.isTool ? "É uma ferramenta (aparece na aba Ferramentas)" : "Marcar como ferramenta"}
+                            >
+                                <Hammer size={18} />
+                            </button>
                         </td>
                         
                         {/* History Icon */}
@@ -385,9 +411,6 @@ const ObraInventory: React.FC = () => {
                                 )}
                                 {item.quantity} <span className="text-xs font-normal opacity-70">{item.unit}</span>
                             </div>
-                        </td>
-                        <td className="p-4 text-right" style={{ color: currentTheme.colors.text }}>
-                            {formatCurrency(item.averagePrice)}
                         </td>
                         <td className="p-4 text-right font-medium" style={{ color: currentTheme.colors.text }}>
                             {formatCurrency(totalValue)}
@@ -620,9 +643,8 @@ const ObraInventory: React.FC = () => {
                             onChange={e => setFormData({...formData, quantity: parseFloat(e.target.value)})}
                             className={baseInputClass}
                             style={dynamicInputStyle}
-                            disabled={!!editingId} // Disable direct edit if editing (force use of movements, or allow strict override? keeping simple edit allowed for now but mostly handled by movements)
+                            disabled={!!editingId}
                         />
-                        {editingId && <p className="text-[10px] mt-1 text-yellow-500">Use os botões + / - na lista para movimentações.</p>}
                     </div>
                     <div>
                         <label className="block text-sm mb-1" style={labelStyle}>Preço Médio (R$)</label>
@@ -637,16 +659,28 @@ const ObraInventory: React.FC = () => {
                     </div>
                 </div>
 
-                <div>
-                    <label className="block text-sm mb-1" style={labelStyle}>Estoque Mínimo (Alerta)</label>
-                    <input 
-                        type="number"
-                        step="0.001"
-                        value={formData.minThreshold}
-                        onChange={e => setFormData({...formData, minThreshold: parseFloat(e.target.value)})}
-                        className={baseInputClass}
-                        style={dynamicInputStyle}
-                    />
+                <div className="grid grid-cols-2 gap-4 items-end">
+                    <div>
+                        <label className="block text-sm mb-1" style={labelStyle}>Estoque Mínimo (Alerta)</label>
+                        <input 
+                            type="number"
+                            step="0.001"
+                            value={formData.minThreshold}
+                            onChange={e => setFormData({...formData, minThreshold: parseFloat(e.target.value)})}
+                            className={baseInputClass}
+                            style={dynamicInputStyle}
+                        />
+                    </div>
+                    
+                    <label className="flex items-center gap-2 cursor-pointer pb-2">
+                        <input 
+                            type="checkbox"
+                            checked={formData.isTool}
+                            onChange={e => setFormData({...formData, isTool: e.target.checked})}
+                            className="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                        />
+                        <span className="text-sm" style={{ color: currentTheme.colors.text }}>É Ferramenta?</span>
+                    </label>
                 </div>
 
                 <div className="flex justify-end gap-2 pt-4 border-t" style={{ borderColor: currentTheme.colors.border }}>

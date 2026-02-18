@@ -1,3 +1,4 @@
+
 import { db } from '../lib/firebase';
 import { collection, getDocs, addDoc, serverTimestamp, query, orderBy, doc, deleteDoc, updateDoc, runTransaction } from 'firebase/firestore';
 import { SiteInventoryItem, StockMovement } from '../types';
@@ -21,6 +22,7 @@ export const siteInventoryService = {
         quantity: data.quantity ?? 0,
         averagePrice: data.averagePrice ?? 0,
         minThreshold: data.minThreshold ?? 0,
+        isTool: data.isTool ?? false, // Mapeia o campo
         updatedAt: data.updatedAt?.toDate() || new Date()
       } as SiteInventoryItem;
     });
@@ -31,7 +33,7 @@ export const siteInventoryService = {
     const ref = collection(db, 'construction_sites', siteId, 'inventory');
     await addDoc(ref, {
       ...item,
-      siteId: siteId, // Redundância útil
+      siteId: siteId, 
       updatedAt: serverTimestamp()
     });
   },
@@ -40,7 +42,7 @@ export const siteInventoryService = {
   updateItem: async (siteId: string, itemId: string, data: Partial<SiteInventoryItem>) => {
     const ref = doc(db, 'construction_sites', siteId, 'inventory', itemId);
     const dataToUpdate = { ...data, updatedAt: serverTimestamp() };
-    delete dataToUpdate.id; // Garante que não sobrescrevemos o ID no corpo do doc
+    delete dataToUpdate.id; 
     
     await updateDoc(ref, dataToUpdate);
   },
@@ -113,16 +115,11 @@ export const siteInventoryService = {
   },
 
   // Busca TODAS as movimentações da obra (Agregador)
-  // Nota: Em produção, o ideal seria ter uma coleção "flat" de movements, 
-  // mas aqui vamos iterar os itens para manter a estrutura simples.
   getAllSiteMovements: async (siteId: string): Promise<StockMovement[]> => {
-    // 1. Pegar todos os itens da obra
     const items = await siteInventoryService.getSiteInventory(siteId);
     
-    // 2. Buscar histórico de cada um em paralelo
     const promises = items.map(async (item) => {
         const history = await siteInventoryService.getItemHistory(siteId, item.id!);
-        // Injeta o nome do item no objeto de movimento para exibição
         return history.map(h => ({
             ...h,
             itemName: item.name,
@@ -132,7 +129,6 @@ export const siteInventoryService = {
 
     const results = await Promise.all(promises);
     
-    // 3. Achatada array de arrays e ordena por data (mais recente primeiro)
     const allMovements = results.flat().sort((a, b) => b.date.getTime() - a.date.getTime());
     
     return allMovements;
