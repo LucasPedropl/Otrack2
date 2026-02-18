@@ -6,6 +6,7 @@ import { accessProfileService } from '../services/accessProfileService';
 interface PermissionsContextType {
   permissions: string[];
   allowedSites: string[];
+  allSites: boolean;
   isAdmin: boolean;
   isLoading: boolean;
   hasPermission: (module: string, action: string, siteId?: string) => boolean;
@@ -19,6 +20,7 @@ const SUPER_ADMIN_EMAILS = ['pedrolucasmota2005@gmail.com', 'pedro@gmail.com', '
 export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [permissions, setPermissions] = useState<string[]>([]);
   const [allowedSites, setAllowedSites] = useState<string[]>([]);
+  const [allSites, setAllSites] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -27,43 +29,46 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       setIsLoading(true);
       
       if (user) {
-        // 1. Verificação de Super Admin por Email (Override total)
         if (SUPER_ADMIN_EMAILS.includes(user.email)) {
           setPermissions(['admin:full']);
-          setAllowedSites([]); // Vazio = Todas as obras
+          setAllowedSites([]);
+          setAllSites(true);
           setIsAdmin(true);
           setIsLoading(false);
           return;
         }
 
-        // 2. Carregar permissões do Perfil de Acesso
         if (user.profileId) {
           try {
             const profile = await accessProfileService.getById(user.profileId);
             if (profile) {
               setPermissions(profile.permissions || []);
               setAllowedSites(profile.allowedSites || []);
+              setAllSites(profile.allSites ?? false);
               setIsAdmin(profile.permissions.includes('admin:full'));
             } else {
               setPermissions([]);
               setAllowedSites([]);
+              setAllSites(false);
               setIsAdmin(false);
             }
           } catch (error) {
             console.error("Error loading permissions", error);
             setPermissions([]);
             setAllowedSites([]);
+            setAllSites(false);
             setIsAdmin(false);
           }
         } else {
-          // Usuário logado mas sem perfil definido (ex: operário novo)
           setPermissions([]);
           setAllowedSites([]);
+          setAllSites(false);
           setIsAdmin(false);
         }
       } else {
         setPermissions([]);
         setAllowedSites([]);
+        setAllSites(false);
         setIsAdmin(false);
       }
       setIsLoading(false);
@@ -75,12 +80,12 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const hasPermission = (module: string, action: string, siteId?: string) => {
     if (isAdmin) return true;
     
-    // Verifica permissão do módulo
     const hasModulePerm = permissions.includes(`${module}:${action}`);
     if (!hasModulePerm) return false;
 
-    // Se for um módulo de obra e houver um siteId, verifica restrição de site
-    if (module === 'obras' && siteId && allowedSites.length > 0) {
+    // Se estivermos verificando acesso a uma obra específica
+    if (module === 'obras' && siteId) {
+      if (allSites) return true;
       return allowedSites.includes(siteId);
     }
 
@@ -96,6 +101,7 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
     <PermissionsContext.Provider value={{ 
       permissions, 
       allowedSites,
+      allSites,
       isLoading, 
       isAdmin, 
       hasPermission,

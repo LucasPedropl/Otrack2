@@ -45,7 +45,7 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { currentTheme } = useTheme();
-  const { hasPermission, allowedSites, isAdmin, isLoading: isPermissionsLoading } = usePermissions();
+  const { hasPermission, allowedSites, allSites, isAdmin, isLoading: isPermissionsLoading } = usePermissions();
   
   const { 
     isCollapsed: isPrimaryCollapsed, 
@@ -86,11 +86,8 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
       try {
         const data = await constructionService.getAll();
         
-        // FILTRAR OBRAS BASEADO NO PERFIL
         const filteredSites = data.filter(site => {
-           // Se for admin total ou não houver lista de sites permitidos, mostra tudo
-           if (isAdmin || allowedSites.length === 0) return true;
-           // Caso contrário, verifica se o ID da obra está na lista permitida
+           if (isAdmin || allSites) return true;
            return allowedSites.includes(site.id!);
         });
         
@@ -102,7 +99,7 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
     if (!isPermissionsLoading) {
       fetchSites();
     }
-  }, [isPermissionsLoading, allowedSites, isAdmin]);
+  }, [isPermissionsLoading, allowedSites, allSites, isAdmin]);
 
   useEffect(() => {
     if (window.innerWidth < 768) return;
@@ -156,10 +153,7 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
     { icon: Building2, label: 'Gerenciar Obras', path: '/admin/obras', permission: 'obras:view' },
   ];
 
-  const navItems = navItemsRaw.filter(item => {
-      if (item.path === '/admin/dashboard') return true;
-      return hasPermission(item.permission.split(':')[0], 'view');
-  });
+  const navItems = navItemsRaw.filter(item => hasPermission(item.permission.split(':')[0], 'view'));
 
   const handlePrimaryNavigate = (path: string) => {
     navigate(path);
@@ -191,304 +185,47 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
   if (isPermissionsLoading) return null;
 
   return (
-    <div 
-      className="h-screen flex flex-row overflow-hidden transition-colors duration-300"
-      style={{ backgroundColor: currentTheme.colors.background }}
-    >
-      {isMobileOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 md:hidden backdrop-blur-sm"
-          onClick={closeMobileSidebar}
-        />
-      )}
+    <div className="h-screen flex flex-row overflow-hidden transition-colors duration-300" style={{ backgroundColor: currentTheme.colors.background }}>
+      {isMobileOpen && <div className="fixed inset-0 bg-black/50 z-40 md:hidden backdrop-blur-sm" onClick={closeMobileSidebar} />}
 
-      <aside 
-        className={`
-          fixed md:relative inset-y-0 left-0 z-50 flex flex-col flex-shrink-0
-          transition-all duration-300 ease-in-out shadow-2xl md:shadow-none
-          ${isMobileOpen ? 'translate-x-0 w-64' : '-translate-x-full md:translate-x-0'}
-          ${isPrimaryCollapsed ? 'md:w-20' : 'md:w-64'}
-        `}
-        style={{ 
-          backgroundColor: currentTheme.colors.sidebar, 
-          color: currentTheme.colors.sidebarText,
-        }}
-      >
-        <div 
-          className="absolute right-0 top-0 bottom-0 w-[1px] z-50"
-          style={{ backgroundColor: currentTheme.colors.sidebarText, opacity: 0.12 }}
-        />
-
-        <button
-          onClick={togglePrimarySidebar}
-          className="absolute hidden md:flex items-center justify-center h-6 w-6 rounded-lg border border-solid shadow-sm z-50 transition-colors"
-          style={{ 
-            top: '81px',
-            right: '-12px',
-            transform: 'translateY(-50%)',
-            backgroundColor: currentTheme.colors.sidebar, 
-            borderColor: `${currentTheme.colors.sidebarText}1F`,
-            color: currentTheme.colors.sidebarText
-          }}
-        >
-          {isPrimaryCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-        </button>
-
-        <div className={`h-[81px] p-6 flex items-center transition-all ${isPrimaryCollapsed ? 'md:justify-center' : 'space-x-3'} relative`}>
-          <div className="absolute bottom-0 left-0 right-0 h-[1px]" style={{ backgroundColor: currentTheme.colors.sidebarText, opacity: 0.12 }} />
-          <HardHat className="h-8 w-8 flex-shrink-0" style={{ color: currentTheme.colors.sidebarText }} />
-          <div className={`overflow-hidden whitespace-nowrap ${(isPrimaryCollapsed && !isMobileOpen) ? 'md:hidden' : 'block'}`}>
-            <h1 className="text-xl font-bold tracking-tight">ObraLog</h1>
-            <p className="text-xs opacity-70">Gestão de Obra</p>
-          </div>
-        </div>
-
+      <aside className={`fixed md:relative inset-y-0 left-0 z-50 flex flex-col flex-shrink-0 transition-all duration-300 ease-in-out shadow-2xl md:shadow-none ${isMobileOpen ? 'translate-x-0 w-64' : '-translate-x-full md:translate-x-0'} ${isPrimaryCollapsed ? 'md:w-20' : 'md:w-64'}`} style={{ backgroundColor: currentTheme.colors.sidebar, color: currentTheme.colors.sidebarText }}>
+        <div className="absolute right-0 top-0 bottom-0 w-[1px] z-50" style={{ backgroundColor: currentTheme.colors.sidebarText, opacity: 0.12 }} />
+        <button onClick={togglePrimarySidebar} className="absolute hidden md:flex items-center justify-center h-6 w-6 rounded-lg border border-solid shadow-sm z-50 transition-colors" style={{ top: '81px', right: '-12px', transform: 'translateY(-50%)', backgroundColor: currentTheme.colors.sidebar, borderColor: `${currentTheme.colors.sidebarText}1F`, color: currentTheme.colors.sidebarText }}>{isPrimaryCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}</button>
+        <div className={`h-[81px] p-6 flex items-center transition-all ${isPrimaryCollapsed ? 'md:justify-center' : 'space-x-3'} relative`}><div className="absolute bottom-0 left-0 right-0 h-[1px]" style={{ backgroundColor: currentTheme.colors.sidebarText, opacity: 0.12 }} /><HardHat className="h-8 w-8 flex-shrink-0" style={{ color: currentTheme.colors.sidebarText }} /><div className={`overflow-hidden whitespace-nowrap ${(isPrimaryCollapsed && !isMobileOpen) ? 'md:hidden' : 'block'}`}><h1 className="text-xl font-bold tracking-tight">ObraLog</h1><p className="text-xs opacity-70">Gestão de Obra</p></div></div>
         <nav className="p-4 space-y-2 flex-1 overflow-y-auto overflow-x-hidden no-scrollbar">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
-            return (
-              <button
-                key={item.path}
-                onClick={() => handlePrimaryNavigate(item.path)}
-                onMouseEnter={(e) => handleTooltip(e, item.label, 'primary')}
-                onMouseLeave={handleTooltipLeave}
-                className={`group relative w-full flex items-center ${isPrimaryCollapsed ? 'md:justify-center' : 'space-x-3'} px-4 py-3 rounded-lg transition-all hover:bg-white/5`}
-                style={getSidebarItemStyle(isActive)}
-              >
-                <div className={`flex items-center ${isPrimaryCollapsed ? 'md:justify-center' : 'space-x-3'} w-full`}>
-                  <item.icon className="h-5 w-5 flex-shrink-0" />
-                  <span className={`whitespace-nowrap ${(isPrimaryCollapsed && !isMobileOpen) ? 'md:hidden' : 'block'}`}>{item.label}</span>
-                </div>
-              </button>
-            );
+            return (<button key={item.path} onClick={() => handlePrimaryNavigate(item.path)} onMouseEnter={(e) => handleTooltip(e, item.label, 'primary')} onMouseLeave={handleTooltipLeave} className={`group relative w-full flex items-center ${isPrimaryCollapsed ? 'md:justify-center' : 'space-x-3'} px-4 py-3 rounded-lg transition-all hover:bg-white/5`} style={getSidebarItemStyle(isActive)}><item.icon className="h-5 w-5 flex-shrink-0" /><span className={`whitespace-nowrap ${(isPrimaryCollapsed && !isMobileOpen) ? 'md:hidden' : 'block'}`}>{item.label}</span></button>);
           })}
-
-          {/* SÓ MOSTRA OBRAS SE TIVER PERMISSÃO DE VIEW OU ADMIN */}
           {(hasPermission('obras', 'view') || isAdmin) && (
             <div className="pt-4 mt-2">
-              <p className={`px-4 text-xs font-bold uppercase tracking-wider mb-2 opacity-50 ${(isPrimaryCollapsed && !isMobileOpen) ? 'md:hidden' : 'block'}`}>
-                Obras Ativas
-              </p>
-              {isPrimaryCollapsed && !isMobileOpen && (
-                <div 
-                  className="border-t mx-4 mb-4 md:block hidden" 
-                  style={{ borderColor: currentTheme.colors.sidebarText, opacity: 0.12 }}
-                />
-              )}
-              
+              <p className={`px-4 text-xs font-bold uppercase tracking-wider mb-2 opacity-50 ${(isPrimaryCollapsed && !isMobileOpen) ? 'md:hidden' : 'block'}`}>Obras Ativas</p>
               <div className="space-y-1">
-                {sites.map((site) => {
-                  const isActive = location.pathname.startsWith(`/admin/obra/${site.id}`);
-                  return (
-                    <button
-                      key={site.id}
-                      onClick={() => handlePrimaryNavigate(`/admin/obra/${site.id}`)}
-                      onMouseEnter={(e) => handleTooltip(e, site.name, 'primary')}
-                      onMouseLeave={handleTooltipLeave}
-                      className={`group relative w-full flex items-center ${isPrimaryCollapsed ? 'md:justify-center' : 'space-x-3'} px-4 py-2 rounded-lg transition-all hover:bg-white/5`}
-                      style={getSidebarItemStyle(isActive)}
-                    >
-                      <div className={`flex items-center ${isPrimaryCollapsed ? 'md:justify-center' : 'space-x-3'} w-full`}>
-                        <FolderDot className="h-4 w-4 flex-shrink-0" />
-                        <span className={`whitespace-nowrap text-sm truncate ${(isPrimaryCollapsed && !isMobileOpen) ? 'md:hidden' : 'block'}`}>{site.name}</span>
-                      </div>
-                    </button>
-                  );
-                })}
-                {sites.length === 0 && !isPrimaryCollapsed && (
-                   <p className="px-4 text-[10px] opacity-40 italic">Nenhuma obra vinculada.</p>
-                )}
+                {sites.map((site) => (<button key={site.id} onClick={() => handlePrimaryNavigate(`/admin/obra/${site.id}`)} onMouseEnter={(e) => handleTooltip(e, site.name, 'primary')} onMouseLeave={handleTooltipLeave} className={`group relative w-full flex items-center ${isPrimaryCollapsed ? 'md:justify-center' : 'space-x-3'} px-4 py-2 rounded-lg transition-all hover:bg-white/5`} style={getSidebarItemStyle(location.pathname.startsWith(`/admin/obra/${site.id}`))}><FolderDot className="h-4 w-4 flex-shrink-0" /><span className={`whitespace-nowrap text-sm truncate ${(isPrimaryCollapsed && !isMobileOpen) ? 'md:hidden' : 'block'}`}>{site.name}</span></button>))}
               </div>
             </div>
           )}
         </nav>
-
-        <div className="p-4 relative">
-          <div className="absolute top-0 left-0 right-0 h-[1px]" style={{ backgroundColor: currentTheme.colors.sidebarText, opacity: 0.12 }} />
-          <button
-            onClick={() => handlePrimaryNavigate('/admin/settings')}
-            onMouseEnter={(e) => handleTooltip(e, 'Aparência & Sessão', 'primary')}
-            onMouseLeave={handleTooltipLeave}
-            className={`group relative w-full flex items-center ${isPrimaryCollapsed ? 'md:justify-center' : 'space-x-3'} px-4 py-3 rounded-lg transition-all hover:bg-white/5`}
-            style={getSidebarItemStyle(location.pathname === '/admin/settings')}
-          >
-            <div className={`flex items-center ${isPrimaryCollapsed ? 'md:justify-center' : 'space-x-3'} w-full`}>
-              <Settings className="h-5 w-5 flex-shrink-0" />
-              <span className={`whitespace-nowrap ${(isPrimaryCollapsed && !isMobileOpen) ? 'md:hidden' : 'block'}`}>Aparência</span>
-            </div>
-          </button>
-        </div>
+        
+        {/* SÓ MOSTRA APARÊNCIA SE TIVER ALGUM ACESSO A CONFIGS OU FOR ADMIN */}
+        {(hasSettingsAccess || isAdmin) && (
+          <div className="p-4 relative"><div className="absolute top-0 left-0 right-0 h-[1px]" style={{ backgroundColor: currentTheme.colors.sidebarText, opacity: 0.12 }} /><button onClick={() => handlePrimaryNavigate('/admin/settings')} onMouseEnter={(e) => handleTooltip(e, 'Aparência', 'primary')} onMouseLeave={handleTooltipLeave} className={`group relative w-full flex items-center ${isPrimaryCollapsed ? 'md:justify-center' : 'space-x-3'} px-4 py-3 rounded-lg transition-all hover:bg-white/5`} style={getSidebarItemStyle(location.pathname === '/admin/settings')}><Settings className="h-5 w-5 flex-shrink-0" /><span className={`whitespace-nowrap ${(isPrimaryCollapsed && !isMobileOpen) ? 'md:hidden' : 'block'}`}>Aparência</span></button></div>
+        )}
       </aside>
 
       <div className="flex-1 flex flex-col h-full overflow-hidden w-full">
         <TopBar onToggleSettings={toggleSettingsOpen} isSettingsOpen={isSettingsOpen} hasSettingsAccess={hasSettingsAccess} />
-
         <div className="flex-1 flex overflow-hidden relative">
-          <aside
-            className={`
-              flex-shrink-0 transition-all duration-300 flex flex-col z-20 relative
-              ${isSettingsOpen ? (isSettingsCollapsed ? 'md:w-20 overflow-visible' : 'w-full md:w-64 overflow-y-auto') : 'w-0 overflow-hidden'}
-              ${isSettingsOpen ? 'absolute inset-0 md:relative' : ''} 
-            `}
-            style={{ 
-                backgroundColor: currentTheme.colors.sidebar,
-                color: currentTheme.colors.sidebarText,
-                height: '100%',
-                opacity: isSettingsOpen ? 1 : 0,
-                transform: isSettingsOpen ? 'translateX(0)' : 'translateX(-100%)',
-                visibility: isSettingsOpen ? 'visible' : 'hidden'
-            }}
-          >
-            {isSettingsOpen && (
-              <div 
-                className="absolute right-0 top-0 bottom-0 w-[1px] z-50 hidden md:block"
-                style={{ backgroundColor: currentTheme.colors.sidebarText, opacity: 0.12 }}
-              />
-            )}
-
-            <div className="md:hidden p-4 flex justify-end">
-                <button onClick={closeSettings} className="p-2 bg-white/10 rounded-full">
-                    <ChevronLeft size={20} />
-                </button>
-            </div>
-
-            <div className="h-4 hidden md:block"></div>
-
-            <div className="p-4 space-y-6">
-               {settingsMenus.map(menu => (
-                 <div key={menu.id} className="relative">
-                    <button 
-                      onClick={() => !isSettingsCollapsed && toggleMenu(menu.id)}
-                      onMouseEnter={(e) => handleSettingsMenuHover(e, menu.id)}
-                      onMouseLeave={handleSettingsMenuLeave}
-                      className={`w-full flex items-center mb-2 p-2 rounded hover:bg-white/5 transition-colors ${isSettingsCollapsed ? 'justify-center' : 'justify-between'}`}
-                    >
-                       <div className={`flex items-center gap-2 font-semibold ${isSettingsCollapsed ? 'justify-center' : ''}`} style={{ color: currentTheme.colors.sidebarText }}>
-                          <menu.icon size={18} />
-                          {!isSettingsCollapsed && <span>{menu.label}</span>}
-                       </div>
-                       {!isSettingsCollapsed && (openMenus[menu.id] ? <ChevronUp size={14} style={{ color: currentTheme.colors.sidebarText, opacity: 0.7 }} /> : <ChevronDown size={14} style={{ color: currentTheme.colors.sidebarText, opacity: 0.7 }} />)}
-                    </button>
-
-                    {(!isSettingsCollapsed || window.innerWidth < 768) && openMenus[menu.id] && (
-                      <div className="ml-4 pl-4 border-l border-solid space-y-1" style={{ borderColor: `${currentTheme.colors.sidebarText}33` }}>
-                         {menu.items.map(subItem => (
-                           <button 
-                              key={subItem.path}
-                              onClick={() => handleSettingsNavigate(subItem.path)} 
-                              className="block w-full text-left py-2 px-3 rounded text-sm transition-colors hover:bg-white/5" 
-                              style={getSidebarItemStyle(location.pathname === subItem.path)}
-                           >
-                              <div className="flex items-center gap-2">
-                                <subItem.icon size={14} />
-                                {subItem.label}
-                              </div>
-                           </button>
-                         ))}
-                      </div>
-                    )}
-                 </div>
-               ))}
-               
-               {settingsMenus.length === 0 && (
-                   <div className="text-center p-4 text-sm opacity-50">
-                       Nenhum módulo de configuração disponível.
-                   </div>
-               )}
-            </div>
+          <aside className={`flex-shrink-0 transition-all duration-300 flex flex-col z-20 relative ${isSettingsOpen ? (isSettingsCollapsed ? 'md:w-20 overflow-visible' : 'w-full md:w-64 overflow-y-auto') : 'w-0 overflow-hidden'} ${isSettingsOpen ? 'absolute inset-0 md:relative' : ''}`} style={{ backgroundColor: currentTheme.colors.sidebar, color: currentTheme.colors.sidebarText, height: '100%', opacity: isSettingsOpen ? 1 : 0, transform: isSettingsOpen ? 'translateX(0)' : 'translateX(-100%)', visibility: isSettingsOpen ? 'visible' : 'hidden' }}>
+            <div className="p-4 space-y-6">{settingsMenus.map(menu => (<div key={menu.id} className="relative"><button onClick={() => !isSettingsCollapsed && toggleMenu(menu.id)} className={`w-full flex items-center mb-2 p-2 rounded hover:bg-white/5 transition-colors ${isSettingsCollapsed ? 'justify-center' : 'justify-between'}`}><div className={`flex items-center gap-2 font-semibold ${isSettingsCollapsed ? 'justify-center' : ''}`} style={{ color: currentTheme.colors.sidebarText }}><menu.icon size={18} />{!isSettingsCollapsed && <span>{menu.label}</span>}</div>{!isSettingsCollapsed && (openMenus[menu.id] ? <ChevronUp size={14} style={{ color: currentTheme.colors.sidebarText, opacity: 0.7 }} /> : <ChevronDown size={14} style={{ color: currentTheme.colors.sidebarText, opacity: 0.7 }} />)}</button>{(!isSettingsCollapsed || window.innerWidth < 768) && openMenus[menu.id] && (<div className="ml-4 pl-4 border-l border-solid space-y-1" style={{ borderColor: `${currentTheme.colors.sidebarText}33` }}>{menu.items.map(subItem => (<button key={subItem.path} onClick={() => handleSettingsNavigate(subItem.path)} className="block w-full text-left py-2 px-3 rounded text-sm transition-colors hover:bg-white/5" style={getSidebarItemStyle(location.pathname === subItem.path)}><div className="flex items-center gap-2"><subItem.icon size={14} />{subItem.label}</div></button>))}</div>)}</div>))}</div>
           </aside>
-
-          <main className={`flex-1 relative w-full h-full overflow-hidden flex flex-col ${isSettingsOpen ? 'hidden md:flex' : 'flex'}`}>
-            {showToggleStrip && (
-              <div 
-                className="absolute top-0 bottom-0 left-0 z-40 hidden md:flex items-center justify-start cursor-pointer group"
-                style={{ width: '12px', marginLeft: '-1px' }}
-                onClick={toggleSettingsCollapse}
-                title={isSettingsCollapsed ? "Expandir Menu" : "Reduzir Menu"}
-              >
-                <div className="absolute top-0 bottom-0 left-0 w-[1px] group-hover:w-[2px] transition-all duration-200" style={{ backgroundColor: currentTheme.colors.border }} />
-                <div className="relative w-5 h-10 flex items-center justify-center rounded-r-md shadow-sm transition-transform duration-200 group-hover:translate-x-0.5"
-                  style={{ backgroundColor: currentTheme.colors.sidebar, boxShadow: `0 0 0 1px ${currentTheme.colors.sidebarText}1F`, color: currentTheme.colors.sidebarText }}>
-                    {isSettingsCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-                </div>
-              </div>
-            )}
-
-            {showContent ? (
-              <div className={`flex-1 overflow-y-auto w-full ${location.pathname.startsWith('/admin/obra/') ? "" : "p-4 sm:p-8"} ${showToggleStrip ? 'md:pl-6' : ''}`}>
-                {children}
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-center p-8 animate-fadeIn">
-                <div className="p-6 rounded-full mb-6" style={{ backgroundColor: `${currentTheme.colors.primary}10` }}>
-                  <Settings size={48} style={{ color: currentTheme.colors.primary, opacity: 0.5 }} />
-                </div>
-                <h2 className="text-2xl font-bold mb-2" style={{ color: currentTheme.colors.text }}>Menu de Configurações</h2>
-                <p className="max-w-md" style={{ color: currentTheme.colors.textSecondary }}>Selecione uma opção lateral para gerenciar cadastros.</p>
-                <button onClick={closeSettings} className="mt-8 flex items-center gap-2 text-sm hover:underline opacity-70 hover:opacity-100" style={{ color: currentTheme.colors.text }}>
-                   <ArrowLeft size={16} /> Voltar para tela anterior
-                </button>
-              </div>
-            )}
-          </main>
+          <main className={`flex-1 relative w-full h-full overflow-hidden flex flex-col ${isSettingsOpen ? 'hidden md:flex' : 'flex'}`}>{showToggleStrip && (<div className="absolute top-0 bottom-0 left-0 z-40 hidden md:flex items-center justify-start cursor-pointer group" style={{ width: '12px', marginLeft: '-1px' }} onClick={toggleSettingsCollapse}><div className="absolute top-0 bottom-0 left-0 w-[1px] group-hover:w-[2px] transition-all duration-200" style={{ backgroundColor: currentTheme.colors.border }} /><div className="relative w-5 h-10 flex items-center justify-center rounded-r-md shadow-sm transition-transform duration-200 group-hover:translate-x-0.5" style={{ backgroundColor: currentTheme.colors.sidebar, color: currentTheme.colors.sidebarText }}><ChevronLeft size={14} /></div></div>)}<div className={`flex-1 overflow-y-auto w-full ${location.pathname.startsWith('/admin/obra/') ? "" : "p-4 sm:p-8"} ${showToggleStrip ? 'md:pl-6' : ''}`}>{children}</div></main>
         </div>
       </div>
-
-      {isSettingsOpen && isSettingsCollapsed && hoveredSettingsMenu && hoveredMenuPosition && (
-        <div 
-          className="fixed z-[100] rounded-lg shadow-xl overflow-hidden border animate-in fade-in slide-in-from-left-2 duration-150 hidden md:block"
-          style={{ 
-            top: hoveredMenuPosition.top,
-            left: hoveredMenuPosition.left + 5,
-            minWidth: '200px',
-            backgroundColor: currentTheme.colors.sidebar,
-            borderColor: `${currentTheme.colors.sidebarText}33`,
-            boxShadow: '0 4px 20px rgba(0,0,0,0.2)'
-          }}
-          onMouseEnter={() => {
-             if (hoverTimeoutRef.current) {
-                clearTimeout(hoverTimeoutRef.current);
-                hoverTimeoutRef.current = null;
-             }
-             setHoveredSettingsMenu(hoveredSettingsMenu);
-          }}
-          onMouseLeave={handleSettingsMenuLeave}
-        >
-           <div className="px-4 py-3 font-semibold border-b flex items-center gap-2" style={{ color: currentTheme.colors.sidebarText, borderColor: `${currentTheme.colors.sidebarText}1F` }}>
-              {settingsMenus.find(m => m.id === hoveredSettingsMenu)?.label}
-           </div>
-           
-           <div className="py-2">
-              {settingsMenus.find(m => m.id === hoveredSettingsMenu)?.items.map(subItem => (
-                 <button
-                    key={subItem.path}
-                    onClick={() => {
-                        handleSettingsNavigate(subItem.path);
-                        handleSettingsMenuLeave();
-                    }}
-                    className="w-full text-left px-4 py-2 flex items-center gap-3 transition-colors hover:bg-white/10"
-                    style={{ 
-                       color: location.pathname === subItem.path ? currentTheme.colors.primary : currentTheme.colors.sidebarText,
-                       fontWeight: location.pathname === subItem.path ? 600 : 400
-                    }}
-                 >
-                    <subItem.icon size={16} />
-                    <span className="text-sm">{subItem.label}</span>
-                 </button>
-              ))}
-           </div>
-        </div>
-      )}
     </div>
   );
 };
 
-export const AdminLayout: React.FC<LayoutProps> = (props) => {
-  return (
-    <SidebarProvider>
-      <SettingsProvider>
-        <AdminLayoutContent {...props} />
-      </SettingsProvider>
-    </SidebarProvider>
-  );
-};
+export const AdminLayout: React.FC<LayoutProps> = (props) => (
+  <SidebarProvider><SettingsProvider><AdminLayoutContent {...props} /></SettingsProvider></SidebarProvider>
+);

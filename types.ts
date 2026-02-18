@@ -3,61 +3,57 @@ import React from 'react';
 
 export interface User {
   id?: string;
-  name?: string; // Nome do usuário
+  name?: string;
   email: string;
-  password?: string; // Senha provisória/opcional
-  role: 'admin' | 'almoxarife' | 'operario'; // Mantido para compatibilidade legado, mas o sistema usará AccessProfile
-  profileId?: string; // Link para o AccessProfile customizado
+  password?: string;
+  role: 'admin' | 'almoxarife' | 'operario';
+  profileId?: string;
   createdAt: Date;
 }
 
 export interface AccessProfile {
   id?: string;
   name: string;
-  // Permissions format: "module:action" (e.g., "dashboard:view", "inventory:create")
-  // Special action: "admin:full" grants everything
   permissions: string[];
-  // IDs of specific construction sites this profile can access. 
-  // If empty or undefined, assumes access to ALL sites (if permission module exists).
-  allowedSites?: string[]; 
+  allSites: boolean; // Flag explícita: true = todas, false = apenas as da lista
+  allowedSites: string[]; 
 }
 
 export interface InventoryItem {
   id?: string;
-  code?: string; // Código
-  name: string; // Nome
-  quantity: number; // Quantidade atual (pode ser inicializada com 0)
-  unit: string; // Und. orçamento (usando string livre por enquanto conforme pedido de input)
-  category: string; // Categoria
-  costType?: string; // Tipo custo
-  unitValue?: number; // Vlr. unitário
-  stockControl: boolean; // Controle de estoque (Sim/Não)
-  minThreshold: number; // Qtd. mínima estoque
+  code?: string;
+  name: string;
+  quantity: number;
+  unit: string;
+  category: string;
+  costType?: string;
+  unitValue?: number;
+  stockControl: boolean;
+  minThreshold: number;
   updatedAt: Date;
 }
 
 export interface SiteInventoryItem {
   id?: string;
-  originalItemId: string; // ID do Insumo Global
-  name: string; // Nome (denormalizado para facilitar listagem)
-  unit: string; // Unidade (denormalizado)
-  category: string; // Categoria (denormalizado)
-  quantity: number; // Quantidade NA OBRA
-  averagePrice?: number; // Preço médio (vindo do PDF)
-  minThreshold: number; // Mínimo PARA ESTA OBRA
-  siteId: string; // ID da Obra pai
+  originalItemId: string;
+  name: string;
+  unit: string;
+  category: string;
+  quantity: number;
+  averagePrice?: number;
+  minThreshold: number;
+  siteId: string;
   updatedAt: Date;
 }
 
 export interface StockMovement {
   id?: string;
-  type: 'IN' | 'OUT'; // Entrada ou Saída
+  type: 'IN' | 'OUT';
   quantity: number;
   date: Date;
-  reason?: string; // Motivo / Observação
-  userId?: string; // Quem fez a movimentação
+  reason?: string;
+  userId?: string;
   userName?: string;
-  // Optional Denormalized fields for list views
   itemName?: string;
   itemUnit?: string;
 }
@@ -68,19 +64,18 @@ export interface ConstructionSite {
   createdAt: Date;
 }
 
-// Novos tipos para Configurações
 export interface MeasurementUnit {
   id?: string;
-  name: string; // Nome (ex: Balde)
-  abbreviation: string; // Abreviação (ex: Bd)
+  name: string;
+  abbreviation: string;
 }
 
 export interface ItemCategory {
   id?: string;
-  type: 'Produto' | 'Serviço'; // Tipo
-  category: string; // Categoria
-  subcategory: string; // Subcategoria
-  registrationType: 'Próprio' | 'Padrão'; // Cadastro
+  type: 'Produto' | 'Serviço';
+  category: string;
+  subcategory: string;
+  registrationType: 'Próprio' | 'Padrão';
 }
 
 export interface ThemeColors {
@@ -101,10 +96,8 @@ export interface Theme {
   isDark: boolean;
 }
 
-// Layout specific props as requested
 export interface LayoutProps {
   children: React.ReactNode;
-  // While we have a ThemeContext, we keep this optional to allow overrides or legacy usage
   bgColor?: string; 
   pageTitle?: string;
 }

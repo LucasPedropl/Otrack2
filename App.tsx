@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { HashRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import LoginPage from './app/(auth)/login/Login';
@@ -17,13 +18,21 @@ import UsuariosPage from './app/admin/usuarios/UsuariosPage';
 import { authService } from './services/authService';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AdminLayout } from './components/layout/AdminLayout';
-import { PermissionsProvider } from './contexts/PermissionsContext';
+import { PermissionsProvider, usePermissions } from './contexts/PermissionsContext';
 
-// Basic wrapper to protect routes
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const user = authService.getCurrentUser();
-  if (!user) {
-    return <Navigate to="/" replace />;
+  if (!user) return <Navigate to="/" replace />;
+  return <>{children}</>;
+};
+
+// Componente para bloquear acesso a módulos sem permissão
+const PermissionGate: React.FC<{ module: string; action?: string; children: React.ReactNode }> = ({ module, action = 'view', children }) => {
+  const { hasPermission, isLoading } = usePermissions();
+  if (isLoading) return null;
+  if (!hasPermission(module, action)) {
+      // Se não tem acesso, joga pro dashboard (que é o local seguro padrão)
+      return <Navigate to="/admin/dashboard" replace />;
   }
   return <>{children}</>;
 };
@@ -34,54 +43,32 @@ const App: React.FC = () => {
       <PermissionsProvider>
         <HashRouter>
           <Routes>
-            {/* Public Routes */}
             <Route path="/" element={<LoginPage />} />
 
-            {/* Protected Admin Routes Wrapper */}
-            <Route 
-              element={
-                <ProtectedRoute>
-                  <AdminLayout>
-                    <Outlet />
-                  </AdminLayout>
-                </ProtectedRoute>
-              }
-            >
-              {/* System General */}
-              <Route path="/admin/dashboard" element={<DashboardPage />} />
+            <Route element={<ProtectedRoute><AdminLayout><Outlet /></AdminLayout></ProtectedRoute>}>
+              
+              {/* Dashboard tem sua própria verificação interna de permissão no PermissionGate */}
+              <Route path="/admin/dashboard" element={<PermissionGate module="dashboard"><DashboardPage /></PermissionGate>} />
               <Route path="/admin/settings" element={<SettingsPage />} />
 
-              {/* Obras Management (List/Create) */}
-              <Route path="/admin/obras" element={<ObrasPage />} />
+              <Route path="/admin/obras" element={<PermissionGate module="obras"><ObrasPage /></PermissionGate>} />
               
-              {/* Orçamento */}
-              <Route path="/admin/insumos" element={<InsumosPage />} />
-              <Route path="/admin/unidades" element={<UnidadesPage />} />
-              <Route path="/admin/categorias" element={<CategoriasPage />} />
+              <Route path="/admin/insumos" element={<PermissionGate module="orcamento_insumos"><InsumosPage /></PermissionGate>} />
+              <Route path="/admin/unidades" element={<PermissionGate module="orcamento_unidades"><UnidadesPage /></PermissionGate>} />
+              <Route path="/admin/categorias" element={<PermissionGate module="orcamento_categorias"><CategoriasPage /></PermissionGate>} />
 
-              {/* Acesso ao Sistema - NOW LINKED TO REAL PAGES */}
-              <Route path="/admin/perfis" element={<PerfisPage />} />
-              <Route path="/admin/usuarios" element={<UsuariosPage />} />
+              <Route path="/admin/perfis" element={<PermissionGate module="acesso_perfis"><PerfisPage /></PermissionGate>} />
+              <Route path="/admin/usuarios" element={<PermissionGate module="acesso_usuarios"><UsuariosPage /></PermissionGate>} />
 
-              {/* Individual Obra Routes */}
-              <Route path="/admin/obra/:id" element={<ObraRoot />}>
+              <Route path="/admin/obra/:id" element={<PermissionGate module="obras"><ObraRoot /></PermissionGate>}>
                  <Route index element={<Navigate to="overview" replace />} />
                  <Route path="overview" element={<ObraOverview />} />
                  <Route path="inventory" element={<ObraInventory />} />
                  <Route path="movements" element={<ObraMovements />} />
-                 <Route path="settings" element={
-                    <PlaceholderPage 
-                      title="Configurações da Obra" 
-                      description="Ajustes específicos para este projeto." 
-                    />
-                 } />
+                 <Route path="settings" element={<PlaceholderPage title="Configurações da Obra" description="Ajustes específicos." />} />
               </Route>
             </Route>
 
-            {/* Legacy redirect for old bookmark safety */}
-            <Route path="/admin/inventory" element={<Navigate to="/admin/insumos" replace />} />
-
-            {/* Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </HashRouter>
