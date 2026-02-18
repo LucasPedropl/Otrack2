@@ -1,9 +1,10 @@
+
 import React, { useEffect, useState } from 'react';
 import { useParams, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { constructionService } from '../../../services/constructionService';
 import { ConstructionSite } from '../../../types';
-import { Building2, Settings, LayoutDashboard, Package, ArrowLeftRight, Loader2, ArrowLeft, Calendar, MapPin } from 'lucide-react';
+import { Building2, Settings, LayoutDashboard, Package, ArrowLeftRight, Loader2, Calendar, MapPin, Hammer, Truck } from 'lucide-react';
 
 const ObraRoot: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -44,6 +45,8 @@ const ObraRoot: React.FC = () => {
   const tabs = [
     { path: 'overview', label: 'Visão Geral', icon: LayoutDashboard },
     { path: 'inventory', label: 'Almoxarifado', icon: Package },
+    { path: 'tools', label: 'Ferramentas', icon: Hammer },
+    { path: 'rented', label: 'Equip. Alugados', icon: Truck },
     { path: 'movements', label: 'Movimentações', icon: ArrowLeftRight },
   ];
 
@@ -113,7 +116,7 @@ const ObraRoot: React.FC = () => {
                 key={tab.path}
                 to={`/admin/obra/${id}/${tab.path}`}
                 className={({ isActive }) => `
-                  relative flex items-center gap-2 pb-4 text-sm font-medium transition-all
+                  relative flex items-center gap-2 pb-4 text-sm font-medium transition-all whitespace-nowrap
                   ${isActive ? 'opacity-100' : 'opacity-60 hover:opacity-100'}
                 `}
                 style={({ isActive }) => ({

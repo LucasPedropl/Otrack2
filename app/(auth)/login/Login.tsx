@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthLayout } from '../../../components/layout/AuthLayout';
@@ -12,6 +13,7 @@ const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState(DEFAULT_EMAIL);
   const [password, setPassword] = useState(DEFAULT_PASS);
+  const [rememberMe, setRememberMe] = useState(true); // Padrão marcado para melhor UX
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [error, setError] = useState('');
@@ -23,7 +25,7 @@ const LoginPage: React.FC = () => {
     setError('');
 
     try {
-      await authService.loginWithEmail(email, password);
+      await authService.loginWithEmail(email, password, rememberMe);
       navigate('/admin/dashboard');
     } catch (err: any) {
       console.error(err);
@@ -38,7 +40,7 @@ const LoginPage: React.FC = () => {
     setError('');
 
     try {
-      await authService.loginWithGoogle();
+      await authService.loginWithGoogle(rememberMe);
       navigate('/admin/dashboard');
     } catch (err: any) {
       console.error(err);
@@ -88,6 +90,21 @@ const LoginPage: React.FC = () => {
               placeholder="••••••••"
               required
             />
+          </div>
+
+          <div className="flex items-center">
+            <input
+              id="remember-me"
+              name="remember-me"
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 focus:ring-brand-500"
+              style={{ accentColor: currentTheme.colors.primary }}
+            />
+            <label htmlFor="remember-me" className="ml-2 block text-sm select-none cursor-pointer" style={{ color: currentTheme.colors.text }}>
+              Manter conectado
+            </label>
           </div>
 
           {error && (

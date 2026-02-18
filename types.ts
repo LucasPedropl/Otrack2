@@ -58,6 +58,39 @@ export interface StockMovement {
   itemUnit?: string;
 }
 
+// --- NOVOS TIPOS ---
+
+export interface ToolLoan {
+  id?: string;
+  siteId: string;
+  siteItemId: string; // Referência ao item no estoque da obra
+  itemName: string;
+  workerName: string; // Nome do pedreiro/responsável
+  quantity: number;
+  loanDate: Date;
+  returnDate?: Date;
+  status: 'OPEN' | 'RETURNED';
+  notes?: string;
+  updatedAt: Date;
+}
+
+export interface RentedEquipment {
+  id?: string;
+  siteId: string;
+  name: string;
+  supplier: string;
+  description?: string;
+  
+  entryDate: Date;
+  entryPhotos: string[]; // Base64 strings
+  
+  exitDate?: Date;
+  exitPhotos?: string[]; // Base64 strings
+  
+  status: 'ACTIVE' | 'RETURNED';
+  updatedAt: Date;
+}
+
 export interface ConstructionSite {
   id?: string;
   name: string;

@@ -6,7 +6,10 @@ import {
   GoogleAuthProvider, 
   signOut, 
   onAuthStateChanged,
-  User as FirebaseUser 
+  User as FirebaseUser,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence
 } from 'firebase/auth';
 import { 
   doc, 
@@ -21,6 +24,7 @@ import {
 import { User } from '../types';
 
 const ADMIN_EMAILS = ['pedrolucasmota2005@gmail.com', 'pedro@gmail.com', 'teste@gmail.com'];
+const STORAGE_KEY = 'obralog_user';
 
 export const authService = {
   syncUser: async (firebaseUser: FirebaseUser): Promise<User> => {
@@ -83,7 +87,7 @@ export const authService = {
     }
   },
 
-  loginWithEmail: async (email: string, password: string): Promise<User> => {
+  loginWithEmail: async (email: string, password: string, rememberMe: boolean = true): Promise<User> => {
     try {
       // 1. Prioridade: Login Gerenciado via Firestore
       const usersRef = collection(db, 'users');
@@ -103,18 +107,28 @@ export const authService = {
           createdAt: data.createdAt?.toDate() || new Date(),
         } as User;
         
-        localStorage.setItem('obralog_user', JSON.stringify(user));
+        // Define persistência baseada na escolha do usuário
+        const storage = rememberMe ? localStorage : sessionStorage;
+        storage.setItem(STORAGE_KEY, JSON.stringify(user));
+        
+        // Limpa o outro storage para evitar duplicidade
+        if (rememberMe) sessionStorage.removeItem(STORAGE_KEY);
+        else localStorage.removeItem(STORAGE_KEY);
+
         return user;
       }
 
       // 2. Fallback: Firebase Auth padrão
+      await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = await authService.syncUser(userCredential.user);
-      localStorage.setItem('obralog_user', JSON.stringify(user));
+      
+      const storage = rememberMe ? localStorage : sessionStorage;
+      storage.setItem(STORAGE_KEY, JSON.stringify(user));
+      
       return user;
     } catch (err: any) {
       console.error("Login error:", err);
-      // Se o erro for de permissão, é porque a regra do Firestore barrou a consulta inicial
       if (err.message?.includes("permissions") || err.code === 'permission-denied') {
         throw new Error("Erro de permissão no servidor. Contate o administrador.");
       }
@@ -122,11 +136,19 @@ export const authService = {
     }
   },
 
-  loginWithGoogle: async (): Promise<User> => {
+  loginWithGoogle: async (rememberMe: boolean = true): Promise<User> => {
+    // Configura persistência do Firebase
+    await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
+    
     const provider = new GoogleAuthProvider();
     const userCredential = await signInWithPopup(auth, provider);
     const user = await authService.syncUser(userCredential.user);
-    localStorage.setItem('obralog_user', JSON.stringify(user));
+    
+    const storage = rememberMe ? localStorage : sessionStorage;
+    storage.setItem(STORAGE_KEY, JSON.stringify(user));
+    if (rememberMe) sessionStorage.removeItem(STORAGE_KEY);
+    else localStorage.removeItem(STORAGE_KEY);
+
     return user;
   },
 
@@ -134,31 +156,69 @@ export const authService = {
     try {
         await signOut(auth);
     } catch (e) {}
-    localStorage.removeItem('obralog_user');
+    localStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(STORAGE_KEY);
   },
 
   getCurrentUser: (): User | null => {
-    const stored = localStorage.getItem('obralog_user');
+    // Tenta SessionStorage primeiro (sessão temporária), depois LocalStorage
+    const stored = sessionStorage.getItem(STORAGE_KEY) || localStorage.getItem(STORAGE_KEY);
     if (stored) {
       return JSON.parse(stored);
     }
     return null;
   },
 
+  // Verifica se o usuário armazenado no storage ainda existe no banco
+  verifyUserExists: async (userId: string): Promise<boolean> => {
+    try {
+        const docRef = doc(db, 'users', userId);
+        const snapshot = await getDoc(docRef);
+        return snapshot.exists();
+    } catch (e) {
+        console.error("Erro ao verificar existência do usuário:", e);
+        return false;
+    }
+  },
+
   onAuthStateChanged: (callback: (user: User | null) => void) => {
     return onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
+        // Usuário autenticado pelo Firebase
         try {
           const user = await authService.syncUser(firebaseUser);
-          localStorage.setItem('obralog_user', JSON.stringify(user));
+          // Atualiza o storage existente com dados novos, mantendo o tipo de persistência escolhido no login
+          const isSession = !!sessionStorage.getItem(STORAGE_KEY);
+          const storage = isSession ? sessionStorage : localStorage;
+          storage.setItem(STORAGE_KEY, JSON.stringify(user));
+          
           callback(user);
         } catch (error) {
           callback(null);
         }
       } else {
-        // Importante: Se não há usuário Firebase, mantemos o do LocalStorage (Login Gerenciado)
-        const stored = authService.getCurrentUser();
-        callback(stored);
+        // Caso não haja usuário Firebase (logout ou login manual)
+        // Verifica se há usuário no storage (Login Manual)
+        const storedUser = authService.getCurrentUser();
+        
+        if (storedUser) {
+            // VERIFICAÇÃO DE SEGURANÇA:
+            // Checa se o usuário ainda existe no banco de dados.
+            // Se foi deletado, força logout.
+            if (storedUser.id) {
+                const exists = await authService.verifyUserExists(storedUser.id);
+                if (exists) {
+                    callback(storedUser);
+                } else {
+                    await authService.logout();
+                    callback(null);
+                }
+            } else {
+                callback(storedUser);
+            }
+        } else {
+            callback(null);
+        }
       }
     });
   }

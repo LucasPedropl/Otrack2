@@ -13,6 +13,8 @@ import ObraRoot from './app/admin/obra/ObraRoot';
 import ObraOverview from './app/admin/obra/pages/ObraOverview';
 import ObraInventory from './app/admin/obra/pages/ObraInventory';
 import ObraMovements from './app/admin/obra/pages/ObraMovements';
+import ObraTools from './app/admin/obra/pages/ObraTools';
+import ObraRented from './app/admin/obra/pages/ObraRented';
 import PerfisPage from './app/admin/perfis/PerfisPage';
 import UsuariosPage from './app/admin/usuarios/UsuariosPage';
 import { authService } from './services/authService';
@@ -64,6 +66,8 @@ const App: React.FC = () => {
                  <Route index element={<Navigate to="overview" replace />} />
                  <Route path="overview" element={<ObraOverview />} />
                  <Route path="inventory" element={<ObraInventory />} />
+                 <Route path="tools" element={<ObraTools />} />
+                 <Route path="rented" element={<ObraRented />} />
                  <Route path="movements" element={<ObraMovements />} />
                  <Route path="settings" element={<PlaceholderPage title="Configurações da Obra" description="Ajustes específicos." />} />
               </Route>

@@ -1,5 +1,7 @@
 {
   "name": "ObraLog - Gestão de Almoxarifado",
   "description": "Sistema de gerenciamento de estoque e almoxarifado para obras de construção civil.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "camera"
+  ]
 }
