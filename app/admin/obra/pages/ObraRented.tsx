@@ -5,7 +5,7 @@ import { useTheme } from '../../../../contexts/ThemeContext';
 import { rentedEquipmentService } from '../../../../services/rentedEquipmentService';
 import { settingsService } from '../../../../services/settingsService';
 import { RentedEquipment, ItemCategory, MeasurementUnit } from '../../../../types';
-import { Search, Plus, Truck, Calendar, Camera, X, Check, ArrowRight, Image as ImageIcon, AlertTriangle, ChevronDown } from 'lucide-react';
+import { Search, Plus, Truck, Calendar, Camera, X, Check, ArrowRight, Image as ImageIcon, AlertTriangle, ChevronDown, Eye, Maximize2 } from 'lucide-react';
 import { Button } from '../../../../components/ui/Button';
 
 const ObraRented: React.FC = () => {
@@ -19,8 +19,11 @@ const ObraRented: React.FC = () => {
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalType, setModalType] = useState<'ENTRY' | 'EXIT'>('ENTRY');
+  const [modalType, setModalType] = useState<'ENTRY' | 'EXIT' | 'DETAIL'>('ENTRY');
   const [selectedEq, setSelectedEq] = useState<RentedEquipment | null>(null);
+
+  // Lightbox State (Full screen photo)
+  const [enlargedPhoto, setEnlargedPhoto] = useState<string | null>(null);
 
   // Form State
   const [entryData, setEntryData] = useState({ 
@@ -165,12 +168,19 @@ const ObraRented: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const openExitModal = (eq: RentedEquipment) => {
+  const openExitModal = (e: React.MouseEvent, eq: RentedEquipment) => {
+    e.stopPropagation(); // Prevent opening detail modal
     setModalType('EXIT');
     setSelectedEq(eq);
     setExitData({ exitDate: new Date().toISOString().split('T')[0] });
     setPhotos([]);
     setIsModalOpen(true);
+  };
+
+  const openDetailModal = (eq: RentedEquipment) => {
+      setModalType('DETAIL');
+      setSelectedEq(eq);
+      setIsModalOpen(true);
   };
 
   const baseInputClass = "w-full px-3 py-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 transition-colors";
@@ -222,7 +232,12 @@ const ObraRented: React.FC = () => {
                    <tr><td colSpan={8} className="p-8 text-center opacity-50">Nenhum equipamento registrado.</td></tr>
                ) : (
                    equipmentList.map(eq => (
-                       <tr key={eq.id} style={{ backgroundColor: currentTheme.colors.card }}>
+                       <tr 
+                            key={eq.id} 
+                            onClick={() => openDetailModal(eq)}
+                            className="hover:bg-black/5 cursor-pointer transition-colors"
+                            style={{ backgroundColor: currentTheme.colors.card }}
+                        >
                            <td className="p-4">
                                <span className={`px-2 py-1 text-xs font-bold rounded inline-flex items-center gap-1 ${eq.status === 'ACTIVE' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
                                    {eq.status === 'ACTIVE' ? <AlertTriangle size={12} /> : <Check size={12} />}
@@ -232,7 +247,7 @@ const ObraRented: React.FC = () => {
                            <td className="p-4">
                                <p className="font-bold" style={{ color: currentTheme.colors.text }}>{eq.name}</p>
                                <p className="text-xs opacity-70" style={{ color: currentTheme.colors.textSecondary }}>{eq.supplier}</p>
-                               {eq.description && <p className="text-xs italic mt-1" style={{ color: currentTheme.colors.textSecondary }}>"{eq.description}"</p>}
+                               {eq.description && <p className="text-xs italic mt-1 line-clamp-1 opacity-60" style={{ color: currentTheme.colors.textSecondary }}>"{eq.description}"</p>}
                            </td>
                            <td className="p-4" style={{ color: currentTheme.colors.text }}>
                                {eq.category || '-'}
@@ -256,7 +271,7 @@ const ObraRented: React.FC = () => {
                            </td>
                            <td className="p-4 text-right">
                                {eq.status === 'ACTIVE' && (
-                                   <Button onClick={() => openExitModal(eq)} variant="secondary" className="text-xs h-8 border-orange-200 hover:bg-orange-50 text-orange-600">
+                                   <Button onClick={(e) => openExitModal(e, eq)} variant="secondary" className="text-xs h-8 border-orange-200 hover:bg-orange-50 text-orange-600">
                                        Devolver
                                    </Button>
                                )}
@@ -268,15 +283,121 @@ const ObraRented: React.FC = () => {
          </table>
       </div>
 
-      {/* MODAL */}
+      {/* MAIN MODAL */}
       {isModalOpen && (
          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsModalOpen(false)}>
-            <div className="w-full max-w-lg rounded-2xl shadow-xl border relative p-6 max-h-[90vh] overflow-y-auto" style={{ backgroundColor: currentTheme.colors.card, borderColor: currentTheme.colors.border }} onClick={e => e.stopPropagation()}>
-               <h2 className="text-xl font-bold mb-4" style={{ color: currentTheme.colors.text }}>
-                  {modalType === 'ENTRY' ? 'Nova Locação (Entrada)' : 'Registrar Devolução'}
-               </h2>
+            <div 
+                className={`w-full ${modalType === 'DETAIL' ? 'max-w-2xl' : 'max-w-lg'} rounded-2xl shadow-xl border relative p-6 max-h-[90vh] overflow-y-auto`}
+                style={{ backgroundColor: currentTheme.colors.card, borderColor: currentTheme.colors.border }} 
+                onClick={e => e.stopPropagation()}
+            >
+               <div className="flex justify-between items-start mb-6">
+                    <h2 className="text-xl font-bold" style={{ color: currentTheme.colors.text }}>
+                        {modalType === 'ENTRY' && 'Nova Locação (Entrada)'}
+                        {modalType === 'EXIT' && 'Registrar Devolução'}
+                        {modalType === 'DETAIL' && 'Detalhes da Locação'}
+                    </h2>
+                    <button onClick={() => setIsModalOpen(false)} className="p-2 rounded-full hover:bg-white/10 transition-colors">
+                        <X size={20} style={{ color: currentTheme.colors.textSecondary }} />
+                    </button>
+               </div>
                
-               <form onSubmit={modalType === 'ENTRY' ? handleEntrySubmit : handleExitSubmit} className="space-y-4">
+               {/* -------------------- DETAIL VIEW -------------------- */}
+               {modalType === 'DETAIL' && selectedEq && (
+                   <div className="space-y-6">
+                       
+                       <div className="flex justify-between items-start p-4 rounded-xl bg-opacity-5 border" style={{ backgroundColor: currentTheme.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)', borderColor: currentTheme.colors.border }}>
+                           <div>
+                               <h3 className="text-2xl font-bold mb-1" style={{ color: currentTheme.colors.text }}>{selectedEq.name}</h3>
+                               <p className="text-sm font-medium opacity-80" style={{ color: currentTheme.colors.textSecondary }}>{selectedEq.supplier}</p>
+                           </div>
+                           <span className={`px-3 py-1 text-xs font-bold rounded flex items-center gap-2 ${selectedEq.status === 'ACTIVE' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                                {selectedEq.status === 'ACTIVE' ? <AlertTriangle size={14} /> : <Check size={14} />}
+                                {selectedEq.status === 'ACTIVE' ? 'EM LOCAÇÃO' : 'DEVOLVIDO'}
+                           </span>
+                       </div>
+
+                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                           <div className="p-3 rounded-lg border bg-opacity-50" style={{ borderColor: currentTheme.colors.border }}>
+                               <span className="text-xs opacity-60 block mb-1" style={{ color: currentTheme.colors.textSecondary }}>Categoria</span>
+                               <span className="font-medium" style={{ color: currentTheme.colors.text }}>{selectedEq.category || '-'}</span>
+                           </div>
+                           <div className="p-3 rounded-lg border bg-opacity-50" style={{ borderColor: currentTheme.colors.border }}>
+                               <span className="text-xs opacity-60 block mb-1" style={{ color: currentTheme.colors.textSecondary }}>Quantidade</span>
+                               <span className="font-medium" style={{ color: currentTheme.colors.text }}>{selectedEq.quantity} {selectedEq.unit}</span>
+                           </div>
+                           <div className="p-3 rounded-lg border bg-opacity-50" style={{ borderColor: currentTheme.colors.border }}>
+                               <span className="text-xs opacity-60 block mb-1" style={{ color: currentTheme.colors.textSecondary }}>Entrada</span>
+                               <span className="font-medium" style={{ color: currentTheme.colors.text }}>{selectedEq.entryDate.toLocaleDateString()}</span>
+                           </div>
+                           <div className="p-3 rounded-lg border bg-opacity-50" style={{ borderColor: currentTheme.colors.border }}>
+                               <span className="text-xs opacity-60 block mb-1" style={{ color: currentTheme.colors.textSecondary }}>Saída</span>
+                               <span className="font-medium" style={{ color: currentTheme.colors.text }}>{selectedEq.exitDate ? selectedEq.exitDate.toLocaleDateString() : '-'}</span>
+                           </div>
+                       </div>
+
+                       {selectedEq.description && (
+                           <div className="p-4 rounded-lg border bg-opacity-50" style={{ borderColor: currentTheme.colors.border, backgroundColor: currentTheme.isDark ? 'rgba(255,255,255,0.01)' : 'rgba(0,0,0,0.01)' }}>
+                               <span className="text-xs opacity-60 block mb-2 font-bold uppercase tracking-wider" style={{ color: currentTheme.colors.textSecondary }}>Observações</span>
+                               <p className="text-sm leading-relaxed italic" style={{ color: currentTheme.colors.text }}>"{selectedEq.description}"</p>
+                           </div>
+                       )}
+
+                       {/* PHOTOS GRID */}
+                       <div className="space-y-4">
+                           {/* Entry Photos */}
+                           {selectedEq.entryPhotos.length > 0 && (
+                               <div>
+                                   <h4 className="text-sm font-bold mb-3 flex items-center gap-2" style={{ color: currentTheme.colors.text }}>
+                                       <Camera size={16} className="text-blue-500" /> Vistoria de Entrada
+                                   </h4>
+                                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                       {selectedEq.entryPhotos.map((photo, idx) => (
+                                           <div key={`entry-${idx}`} className="group relative aspect-square rounded-lg overflow-hidden border cursor-zoom-in" style={{ borderColor: currentTheme.colors.border }} onClick={() => setEnlargedPhoto(photo)}>
+                                               <img src={photo} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                                               <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                   <Maximize2 className="text-white drop-shadow-md" size={24} />
+                                               </div>
+                                           </div>
+                                       ))}
+                                   </div>
+                               </div>
+                           )}
+
+                           {/* Exit Photos */}
+                           {selectedEq.exitPhotos && selectedEq.exitPhotos.length > 0 && (
+                               <div>
+                                   <div className="w-full h-px my-4" style={{ backgroundColor: currentTheme.colors.border }}></div>
+                                   <h4 className="text-sm font-bold mb-3 flex items-center gap-2" style={{ color: currentTheme.colors.text }}>
+                                       <Check size={16} className="text-green-500" /> Vistoria de Saída
+                                   </h4>
+                                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                       {selectedEq.exitPhotos.map((photo, idx) => (
+                                           <div key={`exit-${idx}`} className="group relative aspect-square rounded-lg overflow-hidden border cursor-zoom-in" style={{ borderColor: currentTheme.colors.border }} onClick={() => setEnlargedPhoto(photo)}>
+                                               <img src={photo} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                                               <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                   <Maximize2 className="text-white drop-shadow-md" size={24} />
+                                               </div>
+                                           </div>
+                                       ))}
+                                   </div>
+                               </div>
+                           )}
+                       </div>
+
+                       {selectedEq.status === 'ACTIVE' && (
+                           <div className="pt-4 border-t" style={{ borderColor: currentTheme.colors.border }}>
+                               <Button onClick={(e) => { setIsModalOpen(false); openExitModal(e, selectedEq); }} variant="secondary" className="w-full border-orange-200 text-orange-600 hover:bg-orange-50">
+                                   Registrar Devolução Agora
+                               </Button>
+                           </div>
+                       )}
+                   </div>
+               )}
+
+               {/* -------------------- FORMS -------------------- */}
+               
+               <form onSubmit={modalType === 'ENTRY' ? handleEntrySubmit : handleExitSubmit} className={`space-y-4 ${modalType === 'DETAIL' ? 'hidden' : ''}`}>
                   {modalType === 'ENTRY' && (
                       <>
                         <div>
@@ -391,50 +512,74 @@ const ObraRented: React.FC = () => {
                       </div>
                   )}
 
-                  {/* Photos Section */}
-                  <div>
-                      <label className="block text-sm mb-2 font-bold flex items-center gap-2" style={{ color: currentTheme.colors.text }}>
-                          <Camera size={16} /> 
-                          {modalType === 'ENTRY' ? 'Fotos da Chegada (Vistoria)' : 'Fotos da Devolução'}
-                      </label>
-                      
-                      <div className="grid grid-cols-4 gap-2 mb-2">
-                          {photos.map((p, i) => (
-                              <div key={i} className="relative group aspect-square">
-                                  <img src={p} className="w-full h-full object-cover rounded-lg border" />
-                                  <button type="button" onClick={() => removePhoto(i)} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                      <X size={12} />
-                                  </button>
-                              </div>
-                          ))}
-                          <button 
-                             type="button" 
-                             onClick={() => fileInputRef.current?.click()}
-                             className="aspect-square rounded-lg border-2 border-dashed flex flex-col items-center justify-center hover:bg-white/5 transition-colors"
-                             style={{ borderColor: currentTheme.colors.border, color: currentTheme.colors.textSecondary }}
-                          >
-                             <Camera size={24} className="mb-1" />
-                             <span className="text-[10px]">Adicionar</span>
-                          </button>
-                      </div>
-                      <input 
-                         type="file" 
-                         ref={fileInputRef} 
-                         accept="image/*" 
-                         capture="environment" 
-                         multiple 
-                         className="hidden" 
-                         onChange={handlePhotoUpload} 
-                      />
-                  </div>
+                  {/* Photos Section - Only for Form Modes */}
+                  {(modalType === 'ENTRY' || modalType === 'EXIT') && (
+                    <div>
+                        <label className="block text-sm mb-2 font-bold flex items-center gap-2" style={{ color: currentTheme.colors.text }}>
+                            <Camera size={16} /> 
+                            {modalType === 'ENTRY' ? 'Fotos da Chegada (Vistoria)' : 'Fotos da Devolução'}
+                        </label>
+                        
+                        <div className="grid grid-cols-4 gap-2 mb-2">
+                            {photos.map((p, i) => (
+                                <div key={i} className="relative group aspect-square">
+                                    <img src={p} className="w-full h-full object-cover rounded-lg border" />
+                                    <button type="button" onClick={() => removePhoto(i)} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <X size={12} />
+                                    </button>
+                                </div>
+                            ))}
+                            <button 
+                                type="button" 
+                                onClick={() => fileInputRef.current?.click()}
+                                className="aspect-square rounded-lg border-2 border-dashed flex flex-col items-center justify-center hover:bg-white/5 transition-colors"
+                                style={{ borderColor: currentTheme.colors.border, color: currentTheme.colors.textSecondary }}
+                            >
+                                <Camera size={24} className="mb-1" />
+                                <span className="text-[10px]">Adicionar</span>
+                            </button>
+                        </div>
+                        <input 
+                            type="file" 
+                            ref={fileInputRef} 
+                            accept="image/*" 
+                            capture="environment" 
+                            multiple 
+                            className="hidden" 
+                            onChange={handlePhotoUpload} 
+                        />
+                    </div>
+                  )}
 
-                  <div className="flex justify-end gap-2 pt-4">
-                      <Button type="button" variant="ghost" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
-                      <Button type="submit">Confirmar</Button>
-                  </div>
+                  {(modalType === 'ENTRY' || modalType === 'EXIT') && (
+                    <div className="flex justify-end gap-2 pt-4">
+                        <Button type="button" variant="ghost" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
+                        <Button type="submit">Confirmar</Button>
+                    </div>
+                  )}
                </form>
             </div>
          </div>
+      )}
+
+      {/* LIGHTBOX OVERLAY */}
+      {enlargedPhoto && (
+          <div 
+            className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-4 cursor-zoom-out animate-in fade-in duration-200"
+            onClick={() => setEnlargedPhoto(null)}
+          >
+              <button 
+                className="absolute top-4 right-4 p-3 bg-white/10 rounded-full text-white hover:bg-white/20 transition-colors"
+                onClick={() => setEnlargedPhoto(null)}
+              >
+                  <X size={24} />
+              </button>
+              <img 
+                src={enlargedPhoto} 
+                className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" 
+                onClick={(e) => e.stopPropagation()} // Prevent click on image closing it? Actually click anywhere to close is better UX usually, but lets keep specific.
+              />
+          </div>
       )}
     </div>
   );

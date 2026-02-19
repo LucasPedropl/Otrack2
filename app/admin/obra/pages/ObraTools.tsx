@@ -47,7 +47,15 @@ const ObraTools: React.FC = () => {
   // Modal Loan
   const [isLoanModalOpen, setIsLoanModalOpen] = useState(false);
   const [selectedTool, setSelectedTool] = useState<SiteInventoryItem | RentedEquipment | null>(null);
-  const [loanData, setLoanData] = useState({ workerName: '', quantity: 1, notes: '' });
+  
+  // State for Loan Form (Added Date/Time)
+  const [loanData, setLoanData] = useState({ 
+      workerName: '', 
+      quantity: 1, 
+      notes: '',
+      loanDate: '', 
+      loanTime: '' 
+  });
 
   // Modal Return
   const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
@@ -102,12 +110,12 @@ const ObraTools: React.FC = () => {
     return TOOL_KEYWORDS.some(keyword => lower.includes(keyword));
   };
 
-  // Verifica se o item é ferramenta (ou pela categoria ou pela flag manual)
   const isTool = (item: SiteInventoryItem | RentedEquipment) => {
-    return item.isTool || isToolCategory(item.category);
+    if (item.isTool === true) return true;
+    if (item.isTool === false) return false;
+    return isToolCategory(item.category);
   };
 
-  // Calcula estoque disponível (Total - Emprestado)
   const getAvailableQuantity = (item: SiteInventoryItem | RentedEquipment) => {
     const borrowed = activeLoans
       .filter(l => l.siteItemId === item.id)
@@ -119,7 +127,20 @@ const ObraTools: React.FC = () => {
 
   const handleOpenLoan = (item: SiteInventoryItem | RentedEquipment) => {
     setSelectedTool(item);
-    setLoanData({ workerName: '', quantity: 1, notes: '' });
+    
+    // Default to current date/time
+    const now = new Date();
+    // Format YYYY-MM-DD manually to avoid timezone shifts
+    const dateStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+    const timeStr = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+
+    setLoanData({ 
+        workerName: '', 
+        quantity: 1, 
+        notes: '',
+        loanDate: dateStr,
+        loanTime: timeStr
+    });
     setIsLoanModalOpen(true);
   };
 
@@ -136,6 +157,9 @@ const ObraTools: React.FC = () => {
     // Determine Origin
     const isRented = 'supplier' in selectedTool;
 
+    // Combine Date and Time
+    const combinedDate = new Date(`${loanData.loanDate}T${loanData.loanTime}`);
+
     try {
         await toolService.createLoan(siteId, {
             siteItemId: selectedTool.id!,
@@ -143,7 +167,7 @@ const ObraTools: React.FC = () => {
             itemName: selectedTool.name,
             workerName: loanData.workerName,
             quantity: loanData.quantity,
-            loanDate: new Date(),
+            loanDate: combinedDate,
             notes: loanData.notes
         });
         setIsLoanModalOpen(false);
@@ -188,9 +212,9 @@ const ObraTools: React.FC = () => {
       if (!siteId) return;
       
       const isRented = 'supplier' in item;
-      const newStatus = !item.isTool;
+      const currentEffectiveStatus = isTool(item);
+      const newStatus = !currentEffectiveStatus;
 
-      // Prevent disabling tool status if there are active loans
       if (!newStatus) {
           const hasLoans = activeLoans.some(l => l.siteItemId === item.id);
           if (hasLoans) {
@@ -251,7 +275,6 @@ const ObraTools: React.FC = () => {
     color: currentTheme.colors.text
   };
 
-  // Combined List for Management Modal
   const allManageableItems = [
       ...inventory.map(i => ({ ...i, type: 'OWNED' })),
       ...rentedEquipment.map(r => ({ ...r, type: 'RENTED' }))
@@ -501,7 +524,9 @@ const ObraTools: React.FC = () => {
                                <span className="w-1 h-1 rounded-full bg-gray-400"></span>
                                <span>{loan.quantity} unid.</span>
                             </div>
-                            <p className="text-xs opacity-60 mt-1" style={{ color: currentTheme.colors.textSecondary }}>Retirado em {loan.loanDate.toLocaleString()}</p>
+                            <p className="text-xs opacity-60 mt-1" style={{ color: currentTheme.colors.textSecondary }}>
+                                Retirado em {loan.loanDate.toLocaleDateString()} às {loan.loanDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                            </p>
                             {loan.notes && <p className="text-xs italic mt-1 opacity-80" style={{ color: currentTheme.colors.text }}>Obs: {loan.notes}</p>}
                          </div>
                          <Button onClick={() => openReturnModal(loan)} variant="secondary" className="h-10 border-orange-200 hover:bg-orange-50 text-orange-600">
@@ -530,7 +555,10 @@ const ObraTools: React.FC = () => {
                 <tbody className="divide-y" style={{ borderColor: currentTheme.colors.border }}>
                    {loanHistory.map(h => (
                       <tr key={h.id} style={{ backgroundColor: currentTheme.colors.card }}>
-                         <td className="p-3" style={{ color: currentTheme.colors.text }}>{h.loanDate.toLocaleDateString()}</td>
+                         <td className="p-3 whitespace-nowrap" style={{ color: currentTheme.colors.text }}>
+                             {h.loanDate.toLocaleDateString()} 
+                             <span className="text-xs opacity-60 ml-1.5">{h.loanDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                         </td>
                          <td className="p-3" style={{ color: currentTheme.colors.text }}>
                              {h.quantity}x {h.itemName}
                              {h.itemOrigin === 'RENTED' && <span className="ml-2 text-[10px] bg-purple-100 text-purple-600 px-1 rounded">Locado</span>}
@@ -576,6 +604,32 @@ const ObraTools: React.FC = () => {
                         autoFocus
                       />
                    </div>
+                   
+                   <div className="grid grid-cols-2 gap-3">
+                       <div>
+                          <label className="block text-sm mb-1" style={{ color: currentTheme.colors.textSecondary }}>Data Retirada *</label>
+                          <input 
+                            type="date"
+                            required
+                            value={loanData.loanDate}
+                            onChange={e => setLoanData({...loanData, loanDate: e.target.value})}
+                            className={baseInputClass}
+                            style={dynamicInputStyle}
+                          />
+                       </div>
+                       <div>
+                          <label className="block text-sm mb-1" style={{ color: currentTheme.colors.textSecondary }}>Hora Retirada *</label>
+                          <input 
+                            type="time"
+                            required
+                            value={loanData.loanTime}
+                            onChange={e => setLoanData({...loanData, loanTime: e.target.value})}
+                            className={baseInputClass}
+                            style={dynamicInputStyle}
+                          />
+                       </div>
+                   </div>
+
                    <div>
                       <label className="block text-sm mb-1" style={{ color: currentTheme.colors.textSecondary }}>Quantidade *</label>
                       <input 
@@ -687,7 +741,9 @@ const ObraTools: React.FC = () => {
                    <div className="flex-1 overflow-y-auto p-2">
                        {allManageableItems
                            .filter(i => i.name.toLowerCase().includes(manageSearch.toLowerCase()))
-                           .map(item => (
+                           .map(item => {
+                               const isActive = isTool(item);
+                               return (
                                <div key={`${item.type}-${item.id}`} className="flex items-center justify-between p-3 hover:bg-white/5 rounded cursor-pointer" onClick={() => toggleItemAsTool(item)}>
                                    <div>
                                        <p className="font-medium" style={{ color: currentTheme.colors.text }}>{item.name}</p>
@@ -695,11 +751,11 @@ const ObraTools: React.FC = () => {
                                            {item.category} • {item.type === 'RENTED' ? 'Alugado' : 'Próprio'}
                                        </p>
                                    </div>
-                                   <div className={`transition-colors ${isTool(item) ? 'text-blue-500' : 'text-gray-400'}`}>
-                                       {isTool(item) ? <CheckSquare size={24} /> : <Square size={24} />}
+                                   <div className={`transition-colors ${isActive ? 'text-blue-500' : 'text-gray-400'}`}>
+                                       {isActive ? <CheckSquare size={24} /> : <Square size={24} />}
                                    </div>
                                </div>
-                           ))}
+                           )})}
                    </div>
                </div>
            </div>

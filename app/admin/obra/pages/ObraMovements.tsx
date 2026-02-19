@@ -1,21 +1,28 @@
+
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTheme } from '../../../../contexts/ThemeContext';
 import { siteInventoryService } from '../../../../services/siteInventoryService';
+import { rentedEquipmentService } from '../../../../services/rentedEquipmentService';
 import { StockMovement } from '../../../../types';
-import { Search, ArrowDownLeft, ArrowUpRight, Calendar, User, FileText, ArrowLeftRight, X, Info } from 'lucide-react';
+import { Search, ArrowDownLeft, ArrowUpRight, Calendar, User, FileText, ArrowLeftRight, X, Info, Truck, Box } from 'lucide-react';
 import { BottomActionsBar } from '../../../../components/layout/BottomActionsBar';
+
+// Extend StockMovement for UI purposes
+interface ExtendedStockMovement extends StockMovement {
+    isRented?: boolean;
+}
 
 const ObraMovements: React.FC = () => {
   const { id: siteId } = useParams<{ id: string }>();
   const { currentTheme } = useTheme();
   
-  const [movements, setMovements] = useState<StockMovement[]>([]);
+  const [movements, setMovements] = useState<ExtendedStockMovement[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   
   // Selected Item for Modal
-  const [selectedMovement, setSelectedMovement] = useState<StockMovement | null>(null);
+  const [selectedMovement, setSelectedMovement] = useState<ExtendedStockMovement | null>(null);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -25,8 +32,50 @@ const ObraMovements: React.FC = () => {
     if (!siteId) return;
     setIsLoading(true);
     try {
-        const data = await siteInventoryService.getAllSiteMovements(siteId);
-        setMovements(data);
+        const [invMovements, rentedData] = await Promise.all([
+            siteInventoryService.getAllSiteMovements(siteId),
+            rentedEquipmentService.getAll(siteId)
+        ]);
+
+        // Transform Rented Equipment events into movements
+        const rentedMovements: ExtendedStockMovement[] = [];
+        rentedData.forEach(r => {
+            // Entry (Creation/Registration)
+            rentedMovements.push({
+                id: `rent_in_${r.id}`,
+                type: 'IN',
+                date: r.entryDate,
+                quantity: r.quantity,
+                itemName: r.name,
+                itemUnit: r.unit,
+                userName: 'Sistema',
+                reason: `Locação: ${r.supplier}`,
+                isRented: true
+            });
+            // Exit (Return)
+            if (r.exitDate) {
+                rentedMovements.push({
+                    id: `rent_out_${r.id}`,
+                    type: 'OUT',
+                    date: r.exitDate,
+                    quantity: r.quantity,
+                    itemName: r.name,
+                    itemUnit: r.unit,
+                    userName: 'Sistema',
+                    reason: 'Devolução Locação',
+                    isRented: true
+                });
+            }
+        });
+
+        // Merge standard stock movements
+        const standardMovements: ExtendedStockMovement[] = invMovements.map(m => ({ ...m, isRented: false }));
+
+        // Combine and Sort descending
+        const combined = [...standardMovements, ...rentedMovements]
+            .sort((a, b) => b.date.getTime() - a.date.getTime());
+
+        setMovements(combined);
     } catch (error) {
         console.error("Failed to fetch movements", error);
     } finally {
@@ -39,12 +88,13 @@ const ObraMovements: React.FC = () => {
   }, [siteId]);
 
   const handleExport = () => {
-    const headers = ["Data/Hora", "Tipo", "Item", "Unidade", "Quantidade", "Usuário", "Motivo"];
+    const headers = ["Data/Hora", "Origem", "Tipo", "Item", "Unidade", "Quantidade", "Usuário", "Motivo"];
     const csvContent = "data:text/csv;charset=utf-8," 
        + headers.join(",") + "\n" 
        + movements.map(m => {
            const dateStr = m.date.toLocaleString('pt-BR');
-           return `${dateStr},${m.type === 'IN' ? 'Entrada' : 'Saída'},${m.itemName},${m.itemUnit},${m.quantity},${m.userName || 'Sistema'},${m.reason || ''}`;
+           const origin = m.isRented ? 'Locado' : 'Estoque';
+           return `${dateStr},${origin},${m.type === 'IN' ? 'Entrada' : 'Saída'},${m.itemName},${m.itemUnit},${m.quantity},${m.userName || 'Sistema'},${m.reason || ''}`;
        }).join("\n");
     
     const encodedUri = encodeURI(csvContent);
@@ -104,10 +154,11 @@ const ObraMovements: React.FC = () => {
       {/* Table Content */}
       <div className="pb-20">
         <div className="overflow-x-auto rounded-xl border" style={{ borderColor: currentTheme.colors.border, backgroundColor: currentTheme.colors.card }}>
-          <table className="w-full text-left text-sm border-collapse min-w-[700px]">
+          <table className="w-full text-left text-sm border-collapse min-w-[800px]">
             <thead>
               <tr style={{ backgroundColor: currentTheme.isDark ? 'rgba(255,255,255,0.05)' : '#e5e7eb' }}>
                 <th className="p-4 font-medium" style={{ color: currentTheme.colors.textSecondary }}>Data</th>
+                <th className="p-4 font-medium" style={{ color: currentTheme.colors.textSecondary }}>Origem</th>
                 <th className="p-4 font-medium text-center" style={{ color: currentTheme.colors.textSecondary }}>Tipo</th>
                 <th className="p-4 font-medium" style={{ color: currentTheme.colors.textSecondary }}>Item</th>
                 <th className="p-4 font-medium text-right" style={{ color: currentTheme.colors.textSecondary }}>Quantidade</th>
@@ -118,13 +169,13 @@ const ObraMovements: React.FC = () => {
             <tbody>
               {isLoading ? (
                  <tr>
-                    <td colSpan={6} className="p-8 text-center opacity-60" style={{ color: currentTheme.colors.text }}>
+                    <td colSpan={7} className="p-8 text-center opacity-60" style={{ color: currentTheme.colors.text }}>
                         Carregando histórico...
                     </td>
                  </tr>
               ) : currentData.length === 0 ? (
                  <tr>
-                   <td colSpan={6} className="p-8 text-center opacity-50">
+                   <td colSpan={7} className="p-8 text-center opacity-50">
                       <ArrowLeftRight className="h-8 w-8 mx-auto mb-2" />
                       Nenhuma movimentação encontrada.
                    </td>
@@ -135,7 +186,7 @@ const ObraMovements: React.FC = () => {
                   
                   return (
                     <tr 
-                        key={item.id}
+                        key={item.id || index}
                         onClick={() => setSelectedMovement(item)}
                         className="group hover:opacity-80 transition-colors cursor-pointer"
                         style={{ backgroundColor: index % 2 === 0 ? 'transparent' : (currentTheme.isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)') }}
@@ -145,6 +196,12 @@ const ObraMovements: React.FC = () => {
                                 <Calendar size={14} className="opacity-50" />
                                 {item.date.toLocaleDateString()} <span className="opacity-50 text-xs">{item.date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                             </div>
+                        </td>
+                        <td className="p-4">
+                            <span className={`flex items-center gap-1 text-[10px] uppercase font-bold px-2 py-1 rounded w-fit ${item.isRented ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                                {item.isRented ? <Truck size={10} /> : <Box size={10} />}
+                                {item.isRented ? 'Locado' : 'Estoque'}
+                            </span>
                         </td>
                         <td className="p-4 text-center">
                             <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-bold ${isEntry ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
@@ -227,6 +284,13 @@ const ObraMovements: React.FC = () => {
              {/* Content */}
              <div className="p-6 space-y-4">
                 
+                <div className="flex justify-center mb-4">
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-2 ${selectedMovement.isRented ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                        {selectedMovement.isRented ? <Truck size={14} /> : <Box size={14} />}
+                        {selectedMovement.isRented ? 'Origem: Equipamento Locado' : 'Origem: Estoque Próprio'}
+                    </span>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                     <div className="p-3 rounded-lg border bg-opacity-50" style={{ borderColor: currentTheme.colors.border, backgroundColor: currentTheme.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' }}>
                         <span className="text-xs opacity-60 block mb-1" style={{ color: currentTheme.colors.textSecondary }}>Item</span>

@@ -1,148 +1,241 @@
-import React from 'react';
+
+import React, { useEffect, useState } from 'react';
 import { useTheme } from '../../../../contexts/ThemeContext';
-import { CheckCircle2, AlertCircle, FileText, Clock, MoreHorizontal } from 'lucide-react';
+import { siteInventoryService } from '../../../../services/siteInventoryService';
+import { rentedEquipmentService } from '../../../../services/rentedEquipmentService';
+import { toolService } from '../../../../services/toolService';
+import { SiteInventoryItem, RentedEquipment, ToolLoan, StockMovement } from '../../../../types';
+import { AlertTriangle, TrendingUp, Truck, Hammer, DollarSign, ArrowUpRight, ArrowDownLeft, Package, Loader2, ArrowRight } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
 
 const ObraOverview: React.FC = () => {
+  const { id: siteId } = useParams<{ id: string }>();
   const { currentTheme } = useTheme();
+  const navigate = useNavigate();
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [inventory, setInventory] = useState<SiteInventoryItem[]>([]);
+  const [rented, setRented] = useState<RentedEquipment[]>([]);
+  const [loans, setLoans] = useState<ToolLoan[]>([]);
+  const [recentMovements, setRecentMovements] = useState<StockMovement[]>([]);
+
+  useEffect(() => {
+    const loadDashboardData = async () => {
+        if (!siteId) return;
+        try {
+            const [invData, rentedData, loanData, movData] = await Promise.all([
+                siteInventoryService.getSiteInventory(siteId),
+                rentedEquipmentService.getAll(siteId),
+                toolService.getActiveLoans(siteId),
+                siteInventoryService.getAllSiteMovements(siteId)
+            ]);
+
+            setInventory(invData);
+            setRented(rentedData);
+            setLoans(loanData);
+            
+            // Merge Rented events into movements for the feed
+            const rentedMovements: StockMovement[] = [];
+            rentedData.forEach(r => {
+                // Entry
+                rentedMovements.push({
+                    id: `rent_in_${r.id}`,
+                    type: 'IN',
+                    date: r.entryDate,
+                    quantity: r.quantity,
+                    itemName: r.name,
+                    itemUnit: r.unit,
+                    userName: 'Sistema',
+                    reason: `Locação: ${r.supplier}`
+                });
+                // Exit
+                if (r.exitDate) {
+                    rentedMovements.push({
+                        id: `rent_out_${r.id}`,
+                        type: 'OUT',
+                        date: r.exitDate,
+                        quantity: r.quantity,
+                        itemName: r.name,
+                        itemUnit: r.unit,
+                        userName: 'Sistema',
+                        reason: 'Devolução Locação'
+                    });
+                }
+            });
+
+            // Combine and Sort descending
+            const combined = [...movData, ...rentedMovements]
+                .sort((a, b) => b.date.getTime() - a.date.getTime())
+                .slice(0, 7); // Show top 7
+
+            setRecentMovements(combined);
+
+        } catch (error) {
+            console.error("Error loading overview", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    loadDashboardData();
+  }, [siteId]);
+
+  // --- Calculations ---
+  const lowStockItems = inventory.filter(i => i.minThreshold > 0 && i.quantity <= i.minThreshold);
+  const totalValue = inventory.reduce((acc, i) => acc + (i.quantity * (i.averagePrice || 0)), 0);
+  const activeRentedCount = rented.filter(r => r.status === 'ACTIVE').length;
+  const activeLoansCount = loans.length;
+
+  const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+
+  if (isLoading) {
+      return <div className="flex justify-center py-12"><Loader2 className="animate-spin h-8 w-8 text-blue-500" /></div>;
+  }
+
+  const KPICard = ({ title, value, icon: Icon, colorClass, onClick }: any) => (
+      <div 
+        onClick={onClick}
+        className="p-5 rounded-xl border flex items-center justify-between cursor-pointer hover:shadow-md transition-all"
+        style={{ backgroundColor: currentTheme.colors.card, borderColor: currentTheme.colors.border }}
+      >
+          <div>
+              <p className="text-sm font-medium opacity-70 mb-1" style={{ color: currentTheme.colors.textSecondary }}>{title}</p>
+              <h3 className="text-2xl font-bold" style={{ color: currentTheme.colors.text }}>{value}</h3>
+          </div>
+          <div className={`p-3 rounded-lg ${colorClass}`}>
+              <Icon className="h-6 w-6 text-white" />
+          </div>
+      </div>
+  );
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       
-      {/* Top Row: Main Status + Side Widgets */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Main Status Card */}
-        <div 
-          className="lg:col-span-2 rounded-xl p-6 border flex flex-col justify-between"
-          style={{ backgroundColor: currentTheme.colors.card, borderColor: currentTheme.colors.border }}
-        >
-           <div className="flex justify-between items-start mb-4">
-              <div className="flex items-center gap-2">
-                 <div className="h-5 w-1 bg-orange-500 rounded-full"></div> {/* Accent line */}
-                 <h3 className="font-bold text-lg" style={{ color: currentTheme.colors.text }}>Status do Projeto</h3>
-              </div>
-              <span className="text-xs font-bold px-2 py-1 rounded bg-green-500/20 text-green-500 uppercase">
-                Saudável
-              </span>
-           </div>
-
-           <p className="mb-6 text-sm" style={{ color: currentTheme.colors.textSecondary }}>
-             Acompanhe o progresso geral e as etapas concluídas da obra.
-           </p>
-
-           <div className="mt-auto">
-              <div className="flex justify-between text-xs mb-2" style={{ color: currentTheme.colors.textSecondary }}>
-                 <span>Progresso Geral</span>
-                 <span>75% Concluído</span>
-              </div>
-              <div className="w-full h-2 rounded-full bg-gray-700/50 overflow-hidden">
-                 <div className="h-full bg-orange-500 w-3/4 rounded-full"></div>
-              </div>
-              <div className="flex gap-4 mt-4 text-xs" style={{ color: currentTheme.colors.textSecondary }}>
-                 <div className="flex items-center gap-1">
-                    <CheckCircle2 size={12} /> 12/16 etapas
-                 </div>
-                 <div className="flex items-center gap-1">
-                    <FileText size={12} /> 4 documentos pendentes
-                 </div>
-              </div>
-           </div>
-        </div>
-
-        {/* Right Column Widgets */}
-        <div className="space-y-6">
-           {/* Widget 1 */}
-           <div 
-             className="rounded-xl p-4 border"
-             style={{ backgroundColor: currentTheme.colors.card, borderColor: currentTheme.colors.border }}
-           >
-              <h4 className="text-xs font-bold uppercase mb-3 opacity-70" style={{ color: currentTheme.colors.text }}>Equipes</h4>
-              <div className="flex gap-2">
-                 <span className="text-xs px-3 py-1 rounded-full border opacity-80" style={{ borderColor: currentTheme.colors.border, color: currentTheme.colors.text }}>Alvenaria</span>
-                 <span className="text-xs px-3 py-1 rounded-full border opacity-80" style={{ borderColor: currentTheme.colors.border, color: currentTheme.colors.text }}>Elétrica</span>
-                 <span className="text-xs px-3 py-1 rounded-full border opacity-80" style={{ borderColor: currentTheme.colors.border, color: currentTheme.colors.text }}>Hidráulica</span>
-              </div>
-           </div>
-
-           {/* Widget 2 */}
-           <div 
-             className="rounded-xl p-4 border"
-             style={{ backgroundColor: currentTheme.colors.card, borderColor: currentTheme.colors.border }}
-           >
-              <h4 className="text-xs font-bold uppercase mb-3 opacity-70" style={{ color: currentTheme.colors.text }}>Responsáveis</h4>
-              <div className="flex gap-2">
-                 <span className="text-xs px-3 py-1 rounded-full border opacity-80" style={{ borderColor: currentTheme.colors.border, color: currentTheme.colors.text }}>Eng. Civil</span>
-                 <span className="text-xs px-3 py-1 rounded-full border opacity-80" style={{ borderColor: currentTheme.colors.border, color: currentTheme.colors.text }}>Mestre</span>
-              </div>
-           </div>
-        </div>
+      {/* KPI Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <KPICard 
+            title="Patrimônio em Estoque" 
+            value={formatCurrency(totalValue)} 
+            icon={DollarSign} 
+            colorClass="bg-emerald-500"
+            onClick={() => navigate('../inventory')}
+        />
+        <KPICard 
+            title="Itens Abaixo do Mínimo" 
+            value={lowStockItems.length} 
+            icon={AlertTriangle} 
+            colorClass={lowStockItems.length > 0 ? "bg-red-500" : "bg-gray-400"}
+            onClick={() => navigate('../inventory')}
+        />
+        <KPICard 
+            title="Equipamentos Alugados" 
+            value={activeRentedCount} 
+            icon={Truck} 
+            colorClass="bg-purple-500"
+            onClick={() => navigate('../rented')}
+        />
+        <KPICard 
+            title="Ferramentas Emprestadas" 
+            value={activeLoansCount} 
+            icon={Hammer} 
+            colorClass="bg-orange-500"
+            onClick={() => navigate('../tools')}
+        />
       </div>
 
-      {/* Bottom Row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-         
-         {/* Attention Needed */}
-         <div 
-             className="rounded-xl border overflow-hidden"
-             style={{ backgroundColor: currentTheme.colors.card, borderColor: currentTheme.colors.border }}
-         >
-            <div className="p-3 border-b flex justify-between items-center bg-white/5" style={{ borderColor: currentTheme.colors.border }}>
-               <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: currentTheme.colors.text }}>
-                  <AlertCircle size={16} className="text-red-500" /> Atenção Necessária
-               </div>
-               <span className="text-xs bg-white/10 px-2 rounded text-white">1</span>
-            </div>
-            <div className="p-8 flex flex-col items-center justify-center text-center h-48">
-               <span className="text-sm font-medium mb-1" style={{ color: currentTheme.colors.text }}>Aprovação de Compra</span>
-               <span className="text-xs opacity-60" style={{ color: currentTheme.colors.textSecondary }}>Pedido #1023 aguardando</span>
-            </div>
-         </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          {/* Recent Activity Feed */}
+          <div className="lg:col-span-2 rounded-xl border p-6" style={{ backgroundColor: currentTheme.colors.card, borderColor: currentTheme.colors.border }}>
+              <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-lg font-bold" style={{ color: currentTheme.colors.text }}>Últimas Movimentações</h3>
+                  <button onClick={() => navigate('../movements')} className="text-sm flex items-center gap-1 hover:underline" style={{ color: currentTheme.colors.primary }}>
+                      Ver tudo <ArrowRight size={14} />
+                  </button>
+              </div>
 
-         {/* Recent Activity */}
-         <div 
-             className="rounded-xl border overflow-hidden"
-             style={{ backgroundColor: currentTheme.colors.card, borderColor: currentTheme.colors.border }}
-         >
-            <div className="p-3 border-b flex justify-between items-center bg-white/5" style={{ borderColor: currentTheme.colors.border }}>
-               <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: currentTheme.colors.text }}>
-                  <Clock size={16} className="text-blue-400" /> Atividade Recente
-               </div>
-            </div>
-            <div className="p-0">
-               {[1, 2, 3].map((i) => (
-                 <div key={i} className="p-3 border-b last:border-0 flex gap-3 items-start" style={{ borderColor: currentTheme.colors.border }}>
-                    <div className="mt-1 w-2 h-2 rounded-full bg-green-500 flex-shrink-0"></div>
-                    <div>
-                       <p className="text-xs font-medium" style={{ color: currentTheme.colors.text }}>Entrada de Nota Fiscal</p>
-                       <p className="text-[10px] opacity-60" style={{ color: currentTheme.colors.textSecondary }}>Concluída • 12/01/2026</p>
-                    </div>
-                 </div>
-               ))}
-            </div>
-         </div>
+              <div className="space-y-4">
+                  {recentMovements.length === 0 ? (
+                      <p className="text-center opacity-50 py-4" style={{ color: currentTheme.colors.text }}>Nenhuma atividade recente.</p>
+                  ) : (
+                      recentMovements.map((mov, idx) => (
+                          <div key={mov.id || idx} className="flex items-center justify-between p-3 rounded-lg border border-transparent hover:border-gray-200 hover:bg-gray-50/50 transition-colors" style={{ backgroundColor: currentTheme.isDark ? 'rgba(255,255,255,0.02)' : '#f9fafb' }}>
+                              <div className="flex items-center gap-4">
+                                  <div className={`p-2 rounded-full ${mov.type === 'IN' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                                      {mov.type === 'IN' ? <ArrowDownLeft size={18} /> : <ArrowUpRight size={18} />}
+                                  </div>
+                                  <div>
+                                      <p className="font-medium text-sm" style={{ color: currentTheme.colors.text }}>
+                                          {mov.itemName} <span className="opacity-60 text-xs font-normal">({mov.quantity} {mov.itemUnit})</span>
+                                      </p>
+                                      <p className="text-xs opacity-60" style={{ color: currentTheme.colors.textSecondary }}>
+                                          {mov.userName || 'Sistema'} • {mov.reason || 'Sem motivo'}
+                                      </p>
+                                  </div>
+                              </div>
+                              <div className="text-right text-xs opacity-60" style={{ color: currentTheme.colors.textSecondary }}>
+                                  {new Date(mov.date).toLocaleDateString()} <br/>
+                                  {new Date(mov.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                              </div>
+                          </div>
+                      ))
+                  )}
+              </div>
+          </div>
 
-         {/* Quick Actions */}
-         <div 
-             className="rounded-xl border overflow-hidden"
-             style={{ backgroundColor: currentTheme.colors.card, borderColor: currentTheme.colors.border }}
-         >
-            <div className="p-3 border-b flex justify-between items-center bg-white/5" style={{ borderColor: currentTheme.colors.border }}>
-               <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: currentTheme.colors.text }}>
-                  <MoreHorizontal size={16} className="text-yellow-400" /> Ações Rápidas
-               </div>
-            </div>
-            <div className="p-4 grid grid-cols-2 gap-3">
-               <button className="flex flex-col items-center justify-center p-4 rounded border hover:bg-white/5 transition-colors gap-2" style={{ borderColor: currentTheme.colors.border }}>
-                  <span className="text-lg" style={{ color: currentTheme.colors.text }}>+</span>
-                  <span className="text-xs" style={{ color: currentTheme.colors.textSecondary }}>Solicitar Material</span>
-               </button>
-               <button className="flex flex-col items-center justify-center p-4 rounded border hover:bg-white/5 transition-colors gap-2" style={{ borderColor: currentTheme.colors.border }}>
-                  <FileText size={16} style={{ color: currentTheme.colors.text }} />
-                  <span className="text-xs" style={{ color: currentTheme.colors.textSecondary }}>Relatório Diário</span>
-               </button>
-            </div>
-         </div>
+          {/* Alerts / Actions */}
+          <div className="space-y-6">
+              
+              {/* Low Stock Widget */}
+              <div className="rounded-xl border p-6" style={{ backgroundColor: currentTheme.colors.card, borderColor: currentTheme.colors.border }}>
+                  <h3 className="text-lg font-bold mb-4 flex items-center gap-2" style={{ color: currentTheme.colors.text }}>
+                      <AlertTriangle size={20} className="text-red-500" />
+                      Alertas de Estoque
+                  </h3>
+                  
+                  {lowStockItems.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-6 opacity-50 text-center">
+                          <Package size={32} className="mb-2 text-green-500" />
+                          <p className="text-sm" style={{ color: currentTheme.colors.text }}>Tudo certo! Nenhum item abaixo do mínimo.</p>
+                      </div>
+                  ) : (
+                      <div className="space-y-3">
+                          {lowStockItems.slice(0, 5).map(item => (
+                              <div key={item.id} className="flex justify-between items-center p-2 rounded border-l-2 border-red-500 bg-red-50/10">
+                                  <div>
+                                      <p className="text-sm font-medium" style={{ color: currentTheme.colors.text }}>{item.name}</p>
+                                      <p className="text-xs text-red-500">Atual: {item.quantity} {item.unit}</p>
+                                  </div>
+                                  <div className="text-xs opacity-60 font-mono">
+                                      Min: {item.minThreshold}
+                                  </div>
+                              </div>
+                          ))}
+                          {lowStockItems.length > 5 && (
+                              <button onClick={() => navigate('../inventory')} className="w-full text-center text-xs mt-2 hover:underline" style={{ color: currentTheme.colors.primary }}>
+                                  Ver mais {lowStockItems.length - 5} itens...
+                              </button>
+                          )}
+                      </div>
+                  )}
+              </div>
 
+              {/* Quick Actions */}
+              <div className="rounded-xl border p-6" style={{ backgroundColor: currentTheme.colors.card, borderColor: currentTheme.colors.border }}>
+                  <h3 className="text-lg font-bold mb-4" style={{ color: currentTheme.colors.text }}>Acesso Rápido</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                      <button onClick={() => navigate('../inventory')} className="p-3 rounded-lg border hover:bg-black/5 transition-colors text-center flex flex-col items-center gap-2" style={{ borderColor: currentTheme.colors.border, color: currentTheme.colors.text }}>
+                          <Package size={20} className="opacity-70" />
+                          <span className="text-xs font-medium">Estoque</span>
+                      </button>
+                      <button onClick={() => navigate('../tools')} className="p-3 rounded-lg border hover:bg-black/5 transition-colors text-center flex flex-col items-center gap-2" style={{ borderColor: currentTheme.colors.border, color: currentTheme.colors.text }}>
+                          <Hammer size={20} className="opacity-70" />
+                          <span className="text-xs font-medium">Ferramentas</span>
+                      </button>
+                  </div>
+              </div>
+
+          </div>
       </div>
     </div>
   );
