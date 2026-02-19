@@ -415,7 +415,11 @@ const ObraTools: React.FC = () => {
                                 </div>
                                 <div className="flex flex-col gap-1 text-sm mb-4">
                                     <span className="opacity-70" style={{ color: currentTheme.colors.textSecondary }}>{tool.type === 'RENTED' ? `Forn: ${tool.supplier}` : 'Item Próprio'}</span>
-                                    <span className={`font-bold ${tool.available === 0 ? 'text-red-500' : 'text-green-500'}`}>
+                                    <span className={`font-bold ${
+                                        tool.available === 0 ? 'text-red-500' : 
+                                        tool.available < tool.quantity ? 'text-yellow-600' : 
+                                        'text-green-500'
+                                    }`}>
                                         Disponível: {tool.available} / {tool.quantity} {tool.unit}
                                     </span>
                                 </div>
@@ -464,7 +468,11 @@ const ObraTools: React.FC = () => {
                                     </td>
                                     <td className="p-4" style={{ color: currentTheme.colors.text }}>{tool.category}</td>
                                     <td className="p-4">
-                                        <span className={`font-bold ${tool.available === 0 ? 'text-red-500' : 'text-green-500'}`}>
+                                        <span className={`font-bold ${
+                                            tool.available === 0 ? 'text-red-500' : 
+                                            tool.available < tool.quantity ? 'text-yellow-600' : 
+                                            'text-green-500'
+                                        }`}>
                                             {tool.available} <span className="text-xs font-normal opacity-70">/ {tool.quantity} {tool.unit}</span>
                                         </span>
                                     </td>
