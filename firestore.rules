@@ -6,58 +6,72 @@ service cloud.firestore {
     // --- FUNÇÕES AUXILIARES ---
 
     function isAuthenticated() {
-      // Nota: request.auth só é preenchido em logins via Google ou Firebase Auth direto.
-      // Usuários "Gerenciados" (E-mail/Senha manual) não preenchem este campo.
       return request.auth != null;
     }
 
-    // Verifica permissão no perfil (Apenas para usuários autenticados via Firebase)
+    // Lista hardcoded de Super Admins para Bootstrap (Recuperação do Sistema)
+    function isSuperAdmin() {
+      return request.auth.token.email in ['pedrolucasmota2005@gmail.com', 'pedro@gmail.com', 'teste@gmail.com'];
+    }
+
+    // Verifica permissão no perfil com segurança para documentos inexistentes
     function hasPermission(requiredPermission) {
-      let userData = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-      let profile = get(/databases/$(database)/documents/access_profiles/$(userData.profileId)).data;
-      return 'admin:full' in profile.permissions || requiredPermission in profile.permissions;
+      // Se o usuário não existe no banco, retorna false (a menos que seja super admin tratado na regra de match)
+      // O exists previne o erro de acessar .data em nulo
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             // Verifica se o perfil existe
+             exists(/databases/$(database)/documents/access_profiles/$(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.profileId)) &&
+             // Verifica a permissão dentro do perfil
+             (
+               'admin:full' in get(/databases/$(database)/documents/access_profiles/$(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.profileId)).data.permissions || 
+               requiredPermission in get(/databases/$(database)/documents/access_profiles/$(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.profileId)).data.permissions
+             );
     }
 
     // --- REGRAS POR COLEÇÃO ---
 
     match /users/{userId} {
       allow read: if true; 
-      allow write: if isAuthenticated() && hasPermission('acesso_usuarios:create');
-      allow update: if isAuthenticated() && (request.auth.uid == userId || hasPermission('acesso_usuarios:create')); 
+      // Permite escrita se tiver permissão OU se for um Super Admin tentando salvar a si mesmo (Bootstrap)
+      allow write: if isAuthenticated() && (
+        hasPermission('acesso_usuarios:create') || 
+        (isSuperAdmin() && request.auth.uid == userId)
+      );
+      allow update: if isAuthenticated() && (request.auth.uid == userId || hasPermission('acesso_usuarios:create') || isSuperAdmin()); 
     }
 
     match /access_profiles/{profileId} {
       allow read: if true; 
-      allow write: if isAuthenticated() && hasPermission('acesso_perfis:create');
-      allow delete: if isAuthenticated() && hasPermission('acesso_perfis:delete');
+      allow write: if isAuthenticated() && (hasPermission('acesso_perfis:create') || isSuperAdmin());
+      allow delete: if isAuthenticated() && (hasPermission('acesso_perfis:delete') || isSuperAdmin());
     }
 
     match /inventory/{itemId} {
       allow read: if true; 
-      allow create, update: if isAuthenticated() && hasPermission('orcamento_insumos:create');
-      allow delete: if isAuthenticated() && hasPermission('orcamento_insumos:delete');
+      allow create, update: if isAuthenticated() && (hasPermission('orcamento_insumos:create') || isSuperAdmin());
+      allow delete: if isAuthenticated() && (hasPermission('orcamento_insumos:delete') || isSuperAdmin());
     }
 
     match /measurement_units/{unitId} {
       allow read: if true;
-      allow write: if isAuthenticated() && hasPermission('orcamento_unidades:create');
-      allow delete: if isAuthenticated() && hasPermission('orcamento_unidades:delete');
+      allow write: if isAuthenticated() && (hasPermission('orcamento_unidades:create') || isSuperAdmin());
+      allow delete: if isAuthenticated() && (hasPermission('orcamento_unidades:delete') || isSuperAdmin());
     }
 
     match /item_categories/{catId} {
       allow read: if true;
-      allow write: if isAuthenticated() && hasPermission('orcamento_categorias:create');
-      allow delete: if isAuthenticated() && hasPermission('orcamento_categorias:delete');
+      allow write: if isAuthenticated() && (hasPermission('orcamento_categorias:create') || isSuperAdmin());
+      allow delete: if isAuthenticated() && (hasPermission('orcamento_categorias:delete') || isSuperAdmin());
     }
 
     match /construction_sites/{siteId} {
       allow read: if true; 
-      allow create, update: if isAuthenticated() && hasPermission('obras:create');
-      allow delete: if isAuthenticated() && hasPermission('obras:delete');
+      allow create, update: if isAuthenticated() && (hasPermission('obras:create') || isSuperAdmin());
+      allow delete: if isAuthenticated() && (hasPermission('obras:delete') || isSuperAdmin());
 
       match /inventory/{siteItemId} {
         allow read: if true;
-        allow write: if isAuthenticated() && hasPermission('obras:create');
+        allow write: if isAuthenticated() && (hasPermission('obras:create') || isSuperAdmin());
         
         match /movements/{movId} {
            allow read: if true;

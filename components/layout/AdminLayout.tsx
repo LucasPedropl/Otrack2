@@ -1,14 +1,14 @@
 
-import React, { useState, useEffect, useRef } from 'react';
-import { LayoutProps, ConstructionSite } from '../../types';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { LayoutProps } from '../../types';
 import { LayoutDashboard, HardHat, Settings, ChevronLeft, ChevronRight, Building2, Calculator, ShieldCheck, ChevronDown, ChevronUp, Users, FileText, Ruler, Tag, ArrowLeft, FolderDot } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 import { SidebarProvider, useSidebar } from '../../contexts/SidebarContext';
 import { SettingsProvider, useSettingsSidebar } from '../../contexts/SettingsContext';
 import { usePermissions } from '../../contexts/PermissionsContext';
+import { useConstructionSites } from '../../contexts/ConstructionSiteContext';
 import { TopBar } from './TopBar';
-import { constructionService } from '../../services/constructionService';
 
 const SETTINGS_PATHS = [
   '/admin/insumos',
@@ -46,6 +46,7 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
   const { currentTheme } = useTheme();
   const { hasPermission, allowedSites, allSites, isAdmin, isLoading: isPermissionsLoading } = usePermissions();
+  const { sites: allSitesList, isLoading: isSitesLoading } = useConstructionSites();
   
   const { 
     isCollapsed: isPrimaryCollapsed, 
@@ -63,7 +64,6 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
     closeSettings
   } = useSettingsSidebar();
   
-  const [sites, setSites] = useState<ConstructionSite[]>([]);
   const [hoveredTooltip, setHoveredTooltip] = useState<{ label: string; top: number, left: number } | null>(null);
   const [hoveredSettingsMenu, setHoveredSettingsMenu] = useState<string | null>(null);
   const [hoveredMenuPosition, setHoveredMenuPosition] = useState<{ top: number; left: number } | null>(null);
@@ -81,25 +81,13 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
 
   const hasSettingsAccess = settingsMenus.length > 0;
 
-  useEffect(() => {
-    const fetchSites = async () => {
-      try {
-        const data = await constructionService.getAll();
-        
-        const filteredSites = data.filter(site => {
-           if (isAdmin || allSites) return true;
-           return allowedSites.includes(site.id!);
-        });
-        
-        setSites(filteredSites);
-      } catch (error) {
-        console.error("Failed to fetch sites for sidebar", error);
-      }
-    };
-    if (!isPermissionsLoading) {
-      fetchSites();
-    }
-  }, [isPermissionsLoading, allowedSites, allSites, isAdmin]);
+  // Filtragem das obras baseada nas permissões
+  const sidebarSites = useMemo(() => {
+     return allSitesList.filter(site => {
+        if (isAdmin || allSites) return true;
+        return allowedSites.includes(site.id!);
+     });
+  }, [allSitesList, isAdmin, allSites, allowedSites]);
 
   useEffect(() => {
     if (window.innerWidth < 768) return;
@@ -129,24 +117,7 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
     });
   };
 
-  const handleSettingsMenuHover = (e: React.MouseEvent<HTMLElement>, menuId: string) => {
-    if (!isSettingsCollapsed || window.innerWidth < 768) return;
-    if (hoverTimeoutRef.current) {
-        clearTimeout(hoverTimeoutRef.current);
-        hoverTimeoutRef.current = null;
-    }
-    const rect = e.currentTarget.getBoundingClientRect();
-    setHoveredSettingsMenu(menuId);
-    setHoveredMenuPosition({ top: rect.top, left: rect.right });
-  };
-
   const handleTooltipLeave = () => setHoveredTooltip(null);
-  const handleSettingsMenuLeave = () => {
-    hoverTimeoutRef.current = setTimeout(() => {
-        setHoveredSettingsMenu(null);
-        setHoveredMenuPosition(null);
-    }, 300);
-  };
 
   const navItemsRaw = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/admin/dashboard', permission: 'dashboard:view' },
@@ -201,7 +172,7 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
             <div className="pt-4 mt-2">
               <p className={`px-4 text-xs font-bold uppercase tracking-wider mb-2 opacity-50 ${(isPrimaryCollapsed && !isMobileOpen) ? 'md:hidden' : 'block'}`}>Obras Ativas</p>
               <div className="space-y-1">
-                {sites.map((site) => (<button key={site.id} onClick={() => handlePrimaryNavigate(`/admin/obra/${site.id}`)} onMouseEnter={(e) => handleTooltip(e, site.name, 'primary')} onMouseLeave={handleTooltipLeave} className={`group relative w-full flex items-center ${isPrimaryCollapsed ? 'md:justify-center' : 'space-x-3'} px-4 py-2 rounded-lg transition-all hover:bg-white/5`} style={getSidebarItemStyle(location.pathname.startsWith(`/admin/obra/${site.id}`))}><FolderDot className="h-4 w-4 flex-shrink-0" /><span className={`whitespace-nowrap text-sm truncate ${(isPrimaryCollapsed && !isMobileOpen) ? 'md:hidden' : 'block'}`}>{site.name}</span></button>))}
+                {sidebarSites.map((site) => (<button key={site.id} onClick={() => handlePrimaryNavigate(`/admin/obra/${site.id}`)} onMouseEnter={(e) => handleTooltip(e, site.name, 'primary')} onMouseLeave={handleTooltipLeave} className={`group relative w-full flex items-center ${isPrimaryCollapsed ? 'md:justify-center' : 'space-x-3'} px-4 py-2 rounded-lg transition-all hover:bg-white/5`} style={getSidebarItemStyle(location.pathname.startsWith(`/admin/obra/${site.id}`))}><FolderDot className="h-4 w-4 flex-shrink-0" /><span className={`whitespace-nowrap text-sm truncate ${(isPrimaryCollapsed && !isMobileOpen) ? 'md:hidden' : 'block'}`}>{site.name}</span></button>))}
               </div>
             </div>
           )}

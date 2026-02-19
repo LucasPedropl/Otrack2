@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { constructionService } from '../../../services/constructionService';
@@ -6,54 +7,47 @@ import { Plus, Search, Building2, Edit, Trash2, X, LayoutList, LayoutGrid, Folde
 import { useTheme } from '../../../contexts/ThemeContext';
 import { Button } from '../../../components/ui/Button';
 import { usePermissions } from '../../../contexts/PermissionsContext';
+import { useConstructionSites } from '../../../contexts/ConstructionSiteContext';
 
 const ObrasPage: React.FC = () => {
   const { currentTheme } = useTheme();
   const { hasPermission } = usePermissions();
+  const { sites, refreshSites } = useConstructionSites(); // Usando Contexto
   const navigate = useNavigate();
   
-  const [sites, setSites] = useState<ConstructionSite[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   
   // View Mode State
-  const [viewMode, setViewMode] = useState<'list' | 'card'>('card'); // Default to card for visual appeal
+  const [viewMode, setViewMode] = useState<'list' | 'card'>('card'); 
 
   // Form State
   const [name, setName] = useState('');
 
-  const fetchSites = async () => {
-    try {
-      const data = await constructionService.getAll();
-      setSites(data);
-    } catch (error) {
-      console.error("Failed to fetch construction sites", error);
-    }
-  };
-
+  // Ao montar, garante que os dados estão atualizados (opcional, pois o provider já carrega)
   useEffect(() => {
-    fetchSites();
-  }, []);
+    refreshSites();
+  }, [refreshSites]);
 
   const handleNavigate = (id: string) => {
     navigate(`/admin/obra/${id}`);
   };
 
   const handleEdit = (e: React.MouseEvent, site: ConstructionSite) => {
-    e.stopPropagation(); // Prevent navigation
+    e.stopPropagation(); 
     setName(site.name);
     setEditingId(site.id!);
     setIsModalOpen(true);
   };
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation(); // Prevent navigation
+    e.stopPropagation(); 
     if (window.confirm('Tem certeza que deseja excluir esta obra?')) {
       try {
         await constructionService.delete(id);
-        fetchSites();
+        await refreshSites(); // Atualiza contexto
       } catch (error) {
         console.error("Error deleting site", error);
         alert("Erro ao excluir obra.");
@@ -85,7 +79,7 @@ const ObrasPage: React.FC = () => {
       }
 
       handleCloseModal();
-      fetchSites();
+      await refreshSites(); // Atualiza contexto
     } catch (error) {
       console.error(error);
       alert("Erro ao salvar obra");
