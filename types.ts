@@ -64,7 +64,8 @@ export interface StockMovement {
 export interface ToolLoan {
   id?: string;
   siteId: string;
-  siteItemId: string; // Referência ao item no estoque da obra
+  siteItemId: string; // Referência ao item no estoque da obra ou equipamento locado
+  itemOrigin?: 'INVENTORY' | 'RENTED'; // Identifica a origem do item
   itemName: string;
   workerName: string; // Nome do pedreiro/responsável
   quantity: number;
@@ -79,6 +80,9 @@ export interface RentedEquipment {
   id?: string;
   siteId: string;
   name: string;
+  category: string;
+  unit: string;
+  quantity: number;
   supplier: string;
   description?: string;
   
@@ -89,6 +93,7 @@ export interface RentedEquipment {
   exitPhotos?: string[]; // Base64 strings
   
   status: 'ACTIVE' | 'RETURNED';
+  isTool?: boolean; // Permite forçar aparição na lista de ferramentas
   updatedAt: Date;
 }
 

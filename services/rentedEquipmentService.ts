@@ -40,5 +40,13 @@ export const rentedEquipmentService = {
       exitPhotos: exitData.exitPhotos,
       updatedAt: serverTimestamp()
     });
+  },
+
+  update: async (siteId: string, equipmentId: string, data: Partial<RentedEquipment>) => {
+    const ref = doc(db, 'construction_sites', siteId, 'rented_equipment', equipmentId);
+    await updateDoc(ref, {
+        ...data,
+        updatedAt: serverTimestamp()
+    });
   }
 };

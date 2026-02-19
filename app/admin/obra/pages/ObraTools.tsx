@@ -6,11 +6,24 @@ import { siteInventoryService } from '../../../../services/siteInventoryService'
 import { toolService } from '../../../../services/toolService';
 import { rentedEquipmentService } from '../../../../services/rentedEquipmentService';
 import { SiteInventoryItem, ToolLoan, RentedEquipment } from '../../../../types';
-import { Search, Hammer, User, ArrowRight, CheckCircle, RotateCcw, AlertCircle, Filter, X, Clock, Settings, CheckSquare, Square, Truck, ExternalLink } from 'lucide-react';
+import { Search, Hammer, User, ArrowRight, CheckCircle, RotateCcw, AlertCircle, Filter, X, Clock, Settings, CheckSquare, Square, Truck, ExternalLink, LayoutList, LayoutGrid, Calendar } from 'lucide-react';
 import { Button } from '../../../../components/ui/Button';
 
 // Categorias padrão que consideramos "Ferramentas" para o filtro inteligente (Fallback)
 const TOOL_KEYWORDS = ['ferramenta', 'máquina', 'maquina', 'equipamento', 'epi', 'acessório', 'furadeira', 'serra', 'martelo'];
+
+// Interface unificada para exibição
+interface UnifiedToolDisplay {
+    id: string;
+    name: string;
+    type: 'OWNED' | 'RENTED';
+    supplier?: string;
+    quantity: number;
+    available: number;
+    unit: string;
+    category: string;
+    rawItem: SiteInventoryItem | RentedEquipment;
+}
 
 const ObraTools: React.FC = () => {
   const { id: siteId } = useParams<{ id: string }>();
@@ -25,6 +38,7 @@ const ObraTools: React.FC = () => {
 
   // UI State
   const [activeTab, setActiveTab] = useState<'inventory' | 'active_loans' | 'history'>('inventory');
+  const [viewMode, setViewMode] = useState<'list' | 'card'>('list');
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   
@@ -32,8 +46,17 @@ const ObraTools: React.FC = () => {
 
   // Modal Loan
   const [isLoanModalOpen, setIsLoanModalOpen] = useState(false);
-  const [selectedTool, setSelectedTool] = useState<SiteInventoryItem | null>(null);
+  const [selectedTool, setSelectedTool] = useState<SiteInventoryItem | RentedEquipment | null>(null);
   const [loanData, setLoanData] = useState({ workerName: '', quantity: 1, notes: '' });
+
+  // Modal Return
+  const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
+  const [selectedLoanToReturn, setSelectedLoanToReturn] = useState<ToolLoan | null>(null);
+  const [returnData, setReturnData] = useState({ 
+      returnDate: new Date().toISOString().split('T')[0], 
+      returnTime: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+      notes: '' 
+  });
 
   // Modal Manage List (Selection)
   const [isManageListOpen, setIsManageListOpen] = useState(false);
@@ -56,8 +79,10 @@ const ObraTools: React.FC = () => {
       setActiveLoans(loans);
       setLoanHistory(history);
 
-      // Extract categories for dropdown
-      const cats = Array.from(new Set(items.map(i => i.category))).sort();
+      // Extract categories for dropdown (Merging both lists for categories)
+      const invCats = items.map(i => i.category);
+      const rentCats = activeRented.map(r => r.category);
+      const cats = Array.from(new Set([...invCats, ...rentCats])).sort();
       setAvailableCategories(cats);
 
     } catch (error) {
@@ -78,23 +103,21 @@ const ObraTools: React.FC = () => {
   };
 
   // Verifica se o item é ferramenta (ou pela categoria ou pela flag manual)
-  const isTool = (item: SiteInventoryItem) => {
+  const isTool = (item: SiteInventoryItem | RentedEquipment) => {
     return item.isTool || isToolCategory(item.category);
   };
 
   // Calcula estoque disponível (Total - Emprestado)
-  const getAvailableQuantity = (item: SiteInventoryItem) => {
+  const getAvailableQuantity = (item: SiteInventoryItem | RentedEquipment) => {
     const borrowed = activeLoans
       .filter(l => l.siteItemId === item.id)
       .reduce((acc, curr) => acc + curr.quantity, 0);
     return Math.max(0, item.quantity - borrowed);
   };
 
-  const loansNotReturnedToday = activeLoans.length;
-
   // -- Handlers --
 
-  const handleOpenLoan = (item: SiteInventoryItem) => {
+  const handleOpenLoan = (item: SiteInventoryItem | RentedEquipment) => {
     setSelectedTool(item);
     setLoanData({ workerName: '', quantity: 1, notes: '' });
     setIsLoanModalOpen(true);
@@ -110,9 +133,13 @@ const ObraTools: React.FC = () => {
         return;
     }
 
+    // Determine Origin
+    const isRented = 'supplier' in selectedTool;
+
     try {
         await toolService.createLoan(siteId, {
             siteItemId: selectedTool.id!,
+            itemOrigin: isRented ? 'RENTED' : 'INVENTORY',
             itemName: selectedTool.name,
             workerName: loanData.workerName,
             quantity: loanData.quantity,
@@ -127,57 +154,108 @@ const ObraTools: React.FC = () => {
     }
   };
 
-  const handleReturn = async (loan: ToolLoan) => {
-    if (!siteId) return;
-    if (window.confirm(`Confirmar devolução de ${loan.quantity}x ${loan.itemName} por ${loan.workerName}?`)) {
-        try {
-            await toolService.returnLoan(siteId, loan.id!);
-            fetchData();
-        } catch (error) {
-            console.error(error);
-            alert("Erro ao devolver.");
-        }
+  const openReturnModal = (loan: ToolLoan) => {
+      setSelectedLoanToReturn(loan);
+      setReturnData({
+          returnDate: new Date().toISOString().split('T')[0],
+          returnTime: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+          notes: ''
+      });
+      setIsReturnModalOpen(true);
+  };
+
+  const handleSubmitReturn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!siteId || !selectedLoanToReturn) return;
+
+    // Combine Date and Time
+    const combinedDate = new Date(`${returnData.returnDate}T${returnData.returnTime}`);
+
+    try {
+        await toolService.returnLoan(siteId, selectedLoanToReturn.id!, {
+            returnDate: combinedDate,
+            notes: returnData.notes
+        });
+        setIsReturnModalOpen(false);
+        fetchData();
+    } catch (error) {
+        console.error(error);
+        alert("Erro ao devolver.");
     }
   };
 
-  const toggleItemAsTool = async (item: SiteInventoryItem) => {
+  const toggleItemAsTool = async (item: SiteInventoryItem | RentedEquipment) => {
       if (!siteId) return;
+      
+      const isRented = 'supplier' in item;
+      const newStatus = !item.isTool;
+
+      // Prevent disabling tool status if there are active loans
+      if (!newStatus) {
+          const hasLoans = activeLoans.some(l => l.siteItemId === item.id);
+          if (hasLoans) {
+              alert("Não é possível remover da lista de ferramentas pois existem empréstimos ativos para este item. Devolva-os primeiro.");
+              return;
+          }
+      }
+
       try {
-          // Optimistic update for UI in modal
-          const newStatus = !item.isTool;
-          setInventory(prev => prev.map(i => i.id === item.id ? { ...i, isTool: newStatus } : i));
-          
-          await siteInventoryService.updateItem(siteId, item.id!, { isTool: newStatus });
+          if (isRented) {
+              setRentedEquipment(prev => prev.map(i => i.id === item.id ? { ...i, isTool: newStatus } : i));
+              await rentedEquipmentService.update(siteId, item.id!, { isTool: newStatus });
+          } else {
+              setInventory(prev => prev.map(i => i.id === item.id ? { ...i, isTool: newStatus } : i));
+              await siteInventoryService.updateItem(siteId, item.id!, { isTool: newStatus });
+          }
       } catch (error) {
           console.error(error);
           fetchData(); // Revert on error
       }
   };
 
-  // Filter Logic
-  // Show if manually marked OR (if category matches keyword AND not manually unmarked - not implemented unmark yet, assuming manual overrides)
-  // Current logic: Show if isTool is true OR category matches.
-  // We want to be strict if the user is using the "Manage List".
-  // Let's stick to: Show if isTool is TRUE OR Category matches keywords.
-  
-  const displayInventory = inventory.filter(item => {
-     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
+  // Filter Logic & Unification
+  const unifiedTools: UnifiedToolDisplay[] = [
+      ...inventory.filter(i => isTool(i)).map(i => ({
+          id: i.id!,
+          name: i.name,
+          type: 'OWNED' as const,
+          quantity: i.quantity,
+          available: getAvailableQuantity(i),
+          unit: i.unit,
+          category: i.category,
+          rawItem: i
+      })),
+      ...rentedEquipment.filter(r => isTool(r)).map(r => ({
+          id: r.id!,
+          name: r.name,
+          type: 'RENTED' as const,
+          supplier: r.supplier,
+          quantity: r.quantity,
+          available: getAvailableQuantity(r),
+          unit: r.unit,
+          category: r.category,
+          rawItem: r
+      }))
+  ].filter(item => {
+     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                           (item.supplier?.toLowerCase() || '').includes(searchTerm.toLowerCase());
      const matchesCat = categoryFilter ? item.category === categoryFilter : true;
-     const isConsideredTool = isTool(item);
-     return matchesSearch && matchesCat && isConsideredTool;
+     return matchesSearch && matchesCat;
   });
 
-  const displayRented = rentedEquipment.filter(item => 
-     item.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-     item.supplier.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
   const baseInputClass = "w-full px-3 py-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 transition-colors";
+  const labelStyle = { color: currentTheme.colors.textSecondary };
   const dynamicInputStyle = { 
     backgroundColor: currentTheme.isDark ? 'rgba(0,0,0,0.2)' : '#ffffff', 
     borderColor: currentTheme.colors.border,
     color: currentTheme.colors.text
   };
+
+  // Combined List for Management Modal
+  const allManageableItems = [
+      ...inventory.map(i => ({ ...i, type: 'OWNED' })),
+      ...rentedEquipment.map(r => ({ ...r, type: 'RENTED' }))
+  ].sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <div className="space-y-6">
@@ -188,14 +266,14 @@ const ObraTools: React.FC = () => {
              <div className="p-3 rounded-full bg-blue-100 text-blue-600"><Hammer size={24} /></div>
              <div>
                 <p className="text-sm opacity-60" style={{ color: currentTheme.colors.textSecondary }}>Ferramentas Próprias</p>
-                <p className="text-xl font-bold" style={{ color: currentTheme.colors.text }}>{displayInventory.reduce((acc, i) => acc + getAvailableQuantity(i), 0)}</p>
+                <p className="text-xl font-bold" style={{ color: currentTheme.colors.text }}>{inventory.filter(i => isTool(i)).reduce((acc, i) => acc + getAvailableQuantity(i), 0)}</p>
              </div>
           </div>
           <div className="p-4 rounded-xl border flex items-center gap-4" style={{ backgroundColor: currentTheme.colors.card, borderColor: currentTheme.colors.border }}>
              <div className="p-3 rounded-full bg-purple-100 text-purple-600"><Truck size={24} /></div>
              <div>
                 <p className="text-sm opacity-60" style={{ color: currentTheme.colors.textSecondary }}>Equipamentos Alugados</p>
-                <p className="text-xl font-bold" style={{ color: currentTheme.colors.text }}>{rentedEquipment.length}</p>
+                <p className="text-xl font-bold" style={{ color: currentTheme.colors.text }}>{rentedEquipment.filter(r => isTool(r)).reduce((acc, i) => acc + getAvailableQuantity(i), 0)}</p>
              </div>
           </div>
           <div className="p-4 rounded-xl border flex items-center gap-4" style={{ backgroundColor: currentTheme.colors.card, borderColor: currentTheme.colors.border }}>
@@ -259,77 +337,137 @@ const ObraTools: React.FC = () => {
                    </select>
                 </div>
                 
-                <Button 
-                    onClick={() => { setManageSearch(''); setIsManageListOpen(true); }}
-                    variant="secondary"
-                    className="whitespace-nowrap"
-                >
-                    <Settings size={16} className="mr-2" />
-                    Gerenciar Lista
-                </Button>
-             </div>
-
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                
-                {/* RENTED EQUIPMENT CARDS */}
-                {displayRented.map(rented => (
-                    <div key={`rented-${rented.id}`} className="p-4 rounded-xl border flex flex-col justify-between relative overflow-hidden" style={{ backgroundColor: currentTheme.colors.card, borderColor: currentTheme.colors.border }}>
-                        <div className="absolute top-0 right-0 p-2 bg-purple-500 text-white rounded-bl-xl text-xs font-bold shadow-sm">
-                            ALUGADO
-                        </div>
-                        <div>
-                            <div className="flex justify-between items-start mb-2 pr-12">
-                               <h4 className="font-bold" style={{ color: currentTheme.colors.text }}>{rented.name}</h4>
-                            </div>
-                            <div className="flex flex-col gap-1 text-sm mb-4">
-                               <span className="opacity-70" style={{ color: currentTheme.colors.textSecondary }}>Forn: {rented.supplier}</span>
-                               <span className="font-medium text-green-500 flex items-center gap-1"><CheckCircle size={12} /> Disponível na Obra</span>
-                            </div>
-                        </div>
-                        <Button 
-                           onClick={() => navigate(`../rented`)}
-                           variant="secondary"
-                           className="w-full border-purple-200 text-purple-700 hover:bg-purple-50"
+                <div className="flex items-center gap-2">
+                    {/* View Toggles */}
+                    <div className="flex items-center border rounded-lg overflow-hidden" style={{ borderColor: currentTheme.colors.border }}>
+                        <button 
+                            onClick={() => setViewMode('list')}
+                            className={`p-2 transition-colors ${viewMode === 'list' ? 'bg-opacity-100' : 'bg-opacity-0 hover:bg-opacity-10'}`}
+                            style={{ 
+                            backgroundColor: viewMode === 'list' ? currentTheme.colors.primary : 'transparent',
+                            color: viewMode === 'list' ? '#fff' : currentTheme.colors.text
+                            }}
+                            title="Lista"
                         >
-                           <ExternalLink size={16} className="mr-2" />
-                           Gerenciar em Alugados
-                        </Button>
+                            <LayoutList size={20} />
+                        </button>
+                        <div className="w-px h-full" style={{ backgroundColor: currentTheme.colors.border }}></div>
+                        <button 
+                            onClick={() => setViewMode('card')}
+                            className={`p-2 transition-colors ${viewMode === 'card' ? 'bg-opacity-100' : 'bg-opacity-0 hover:bg-opacity-10'}`}
+                            style={{ 
+                            backgroundColor: viewMode === 'card' ? currentTheme.colors.primary : 'transparent',
+                            color: viewMode === 'card' ? '#fff' : currentTheme.colors.text
+                            }}
+                            title="Cards"
+                        >
+                            <LayoutGrid size={20} />
+                        </button>
                     </div>
-                ))}
 
-                {/* OWNED INVENTORY CARDS */}
-                {displayInventory.map(item => {
-                   const available = getAvailableQuantity(item);
-                   return (
-                      <div key={item.id} className="p-4 rounded-xl border flex flex-col justify-between" style={{ backgroundColor: currentTheme.colors.card, borderColor: currentTheme.colors.border }}>
-                         <div>
-                            <div className="flex justify-between items-start mb-2">
-                               <h4 className="font-bold" style={{ color: currentTheme.colors.text }}>{item.name}</h4>
-                               <span className="text-xs px-2 py-0.5 rounded border bg-blue-500/10 border-blue-500/30 text-blue-500">Próprio</span> 
-                            </div>
-                            <div className="flex justify-between text-sm mb-4">
-                               <span style={{ color: currentTheme.colors.textSecondary }}>Total: {item.quantity} {item.unit}</span>
-                               <span className={`font-bold ${available === 0 ? 'text-red-500' : 'text-green-500'}`}>Disponível: {available}</span>
-                            </div>
-                         </div>
-                         <Button 
-                           onClick={() => handleOpenLoan(item)}
-                           disabled={available <= 0}
-                           variant={available <= 0 ? 'secondary' : 'primary'}
-                           className="w-full"
-                         >
-                            {available <= 0 ? 'Indisponível' : 'Emprestar'}
-                         </Button>
-                      </div>
-                   )
-                })}
-                
-                {displayInventory.length === 0 && displayRented.length === 0 && (
-                    <p className="col-span-full text-center py-8 opacity-50" style={{ color: currentTheme.colors.text }}>
-                        Nenhuma ferramenta ou equipamento encontrado. Use o botão "Gerenciar Lista" para selecionar itens do almoxarifado.
-                    </p>
-                )}
+                    <Button 
+                        onClick={() => { setManageSearch(''); setIsManageListOpen(true); }}
+                        variant="secondary"
+                        className="whitespace-nowrap"
+                    >
+                        <Settings size={16} className="mr-2" />
+                        Gerenciar Lista
+                    </Button>
+                </div>
              </div>
+
+             {/* Content */}
+             {viewMode === 'card' ? (
+                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {unifiedTools.map(tool => (
+                        <div key={`${tool.type}-${tool.id}`} className="p-4 rounded-xl border flex flex-col justify-between relative overflow-hidden group" style={{ backgroundColor: currentTheme.colors.card, borderColor: currentTheme.colors.border }}>
+                            {tool.type === 'RENTED' && (
+                                <div className="absolute top-0 right-0 p-2 bg-purple-500 text-white rounded-bl-xl text-xs font-bold shadow-sm">
+                                    ALUGADO
+                                </div>
+                            )}
+                            <div>
+                                <div className="flex justify-between items-start mb-2 pr-12">
+                                <h4 className="font-bold" style={{ color: currentTheme.colors.text }}>{tool.name}</h4>
+                                </div>
+                                <div className="flex flex-col gap-1 text-sm mb-4">
+                                    <span className="opacity-70" style={{ color: currentTheme.colors.textSecondary }}>{tool.type === 'RENTED' ? `Forn: ${tool.supplier}` : 'Item Próprio'}</span>
+                                    <span className={`font-bold ${tool.available === 0 ? 'text-red-500' : 'text-green-500'}`}>
+                                        Disponível: {tool.available} / {tool.quantity} {tool.unit}
+                                    </span>
+                                </div>
+                            </div>
+                            <Button 
+                                onClick={() => handleOpenLoan(tool.rawItem)}
+                                disabled={tool.available <= 0}
+                                variant={tool.available <= 0 ? 'secondary' : 'primary'}
+                                className="w-full"
+                                style={tool.available > 0 && tool.type === 'RENTED' ? { backgroundColor: '#8b5cf6', borderColor: '#8b5cf6' } : {}}
+                            >
+                                {tool.available <= 0 ? 'Indisponível' : 'Emprestar'}
+                            </Button>
+                        </div>
+                    ))}
+                    {unifiedTools.length === 0 && (
+                        <p className="col-span-full text-center py-8 opacity-50" style={{ color: currentTheme.colors.text }}>
+                            Nenhuma ferramenta encontrada.
+                        </p>
+                    )}
+                 </div>
+             ) : (
+                 // LIST VIEW
+                 <div className="overflow-hidden rounded-xl border" style={{ borderColor: currentTheme.colors.border, backgroundColor: currentTheme.colors.card }}>
+                    <table className="w-full text-left text-sm">
+                        <thead style={{ backgroundColor: currentTheme.isDark ? 'rgba(255,255,255,0.05)' : '#f9fafb' }}>
+                            <tr>
+                                <th className="p-4 font-medium" style={{ color: currentTheme.colors.textSecondary }}>Ferramenta</th>
+                                <th className="p-4 font-medium" style={{ color: currentTheme.colors.textSecondary }}>Tipo</th>
+                                <th className="p-4 font-medium" style={{ color: currentTheme.colors.textSecondary }}>Categoria</th>
+                                <th className="p-4 font-medium" style={{ color: currentTheme.colors.textSecondary }}>Disponibilidade</th>
+                                <th className="p-4 font-medium text-right" style={{ color: currentTheme.colors.textSecondary }}>Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y" style={{ borderColor: currentTheme.colors.border }}>
+                            {unifiedTools.map(tool => (
+                                <tr key={`${tool.type}-${tool.id}`} className="hover:bg-opacity-50" style={{ backgroundColor: currentTheme.colors.card }}>
+                                    <td className="p-4" style={{ color: currentTheme.colors.text }}>
+                                        <div className="font-bold">{tool.name}</div>
+                                        {tool.supplier && <div className="text-xs opacity-60">Forn: {tool.supplier}</div>}
+                                    </td>
+                                    <td className="p-4">
+                                        <span className={`px-2 py-1 rounded text-xs font-bold ${tool.type === 'RENTED' ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600'}`}>
+                                            {tool.type === 'RENTED' ? 'Alugado' : 'Próprio'}
+                                        </span>
+                                    </td>
+                                    <td className="p-4" style={{ color: currentTheme.colors.text }}>{tool.category}</td>
+                                    <td className="p-4">
+                                        <span className={`font-bold ${tool.available === 0 ? 'text-red-500' : 'text-green-500'}`}>
+                                            {tool.available} <span className="text-xs font-normal opacity-70">/ {tool.quantity} {tool.unit}</span>
+                                        </span>
+                                    </td>
+                                    <td className="p-4 text-right">
+                                        <Button 
+                                            onClick={() => handleOpenLoan(tool.rawItem)}
+                                            disabled={tool.available <= 0}
+                                            variant="secondary"
+                                            className="h-8 text-xs"
+                                        >
+                                            Emprestar
+                                        </Button>
+                                    </td>
+                                </tr>
+                            ))}
+                            {unifiedTools.length === 0 && (
+                                <tr>
+                                    <td colSpan={5} className="p-8 text-center opacity-50" style={{ color: currentTheme.colors.text }}>
+                                        Nenhuma ferramenta encontrada.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                 </div>
+             )}
           </div>
        )}
 
@@ -347,12 +485,14 @@ const ObraTools: React.FC = () => {
                       const diffTime = Math.abs(new Date().getTime() - loan.loanDate.getTime());
                       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
                       const isOverdue = diffDays > 1;
+                      const isRented = loan.itemOrigin === 'RENTED';
 
                       return (
                       <div key={loan.id} className={`p-4 rounded-xl border flex justify-between items-center ${isOverdue ? 'border-red-500/30 bg-red-500/5' : ''}`} style={{ backgroundColor: isOverdue ? undefined : currentTheme.colors.card, borderColor: isOverdue ? undefined : currentTheme.colors.border }}>
                          <div>
                             <div className="flex items-center gap-2">
                                 <p className="font-bold" style={{ color: currentTheme.colors.text }}>{loan.itemName}</p>
+                                {isRented && <span className="text-[10px] bg-purple-100 text-purple-600 px-1.5 rounded font-bold">ALUGADO</span>}
                                 {isOverdue && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 rounded uppercase font-bold">Atrasado</span>}
                             </div>
                             <div className="flex items-center gap-2 text-sm mt-1" style={{ color: currentTheme.colors.textSecondary }}>
@@ -364,7 +504,7 @@ const ObraTools: React.FC = () => {
                             <p className="text-xs opacity-60 mt-1" style={{ color: currentTheme.colors.textSecondary }}>Retirado em {loan.loanDate.toLocaleString()}</p>
                             {loan.notes && <p className="text-xs italic mt-1 opacity-80" style={{ color: currentTheme.colors.text }}>Obs: {loan.notes}</p>}
                          </div>
-                         <Button onClick={() => handleReturn(loan)} variant="secondary" className="h-10 border-orange-200 hover:bg-orange-50 text-orange-600">
+                         <Button onClick={() => openReturnModal(loan)} variant="secondary" className="h-10 border-orange-200 hover:bg-orange-50 text-orange-600">
                             <RotateCcw size={16} className="mr-2" /> Devolver
                          </Button>
                       </div>
@@ -391,14 +531,20 @@ const ObraTools: React.FC = () => {
                    {loanHistory.map(h => (
                       <tr key={h.id} style={{ backgroundColor: currentTheme.colors.card }}>
                          <td className="p-3" style={{ color: currentTheme.colors.text }}>{h.loanDate.toLocaleDateString()}</td>
-                         <td className="p-3" style={{ color: currentTheme.colors.text }}>{h.quantity}x {h.itemName}</td>
+                         <td className="p-3" style={{ color: currentTheme.colors.text }}>
+                             {h.quantity}x {h.itemName}
+                             {h.itemOrigin === 'RENTED' && <span className="ml-2 text-[10px] bg-purple-100 text-purple-600 px-1 rounded">Locado</span>}
+                         </td>
                          <td className="p-3" style={{ color: currentTheme.colors.text }}>{h.workerName}</td>
                          <td className="p-3">
                             <span className={`px-2 py-0.5 rounded text-xs ${h.status === 'OPEN' ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}`}>
                                {h.status === 'OPEN' ? 'Em uso' : 'Devolvido'}
                             </span>
                          </td>
-                         <td className="p-3 opacity-70" style={{ color: currentTheme.colors.text }}>{h.returnDate?.toLocaleString() || '-'}</td>
+                         <td className="p-3" style={{ color: currentTheme.colors.text }}>
+                             {h.returnDate?.toLocaleString() || '-'}
+                             {h.status === 'RETURNED' && (h as any).returnNotes && <div className="text-[10px] opacity-60">Obs: {(h as any).returnNotes}</div>}
+                         </td>
                       </tr>
                    ))}
                 </tbody>
@@ -414,6 +560,7 @@ const ObraTools: React.FC = () => {
                 <div className="mb-4 p-3 rounded bg-opacity-5 border" style={{ backgroundColor: currentTheme.colors.primary + '10', borderColor: currentTheme.colors.border }}>
                    <p className="font-bold" style={{ color: currentTheme.colors.text }}>{selectedTool.name}</p>
                    <p className="text-sm" style={{ color: currentTheme.colors.textSecondary }}>Disponível: {getAvailableQuantity(selectedTool)} {selectedTool.unit}</p>
+                   {'supplier' in selectedTool && <p className="text-xs text-purple-500 font-bold mt-1">Item Locado</p>}
                 </div>
                 
                 <form onSubmit={handleSubmitLoan} className="space-y-4">
@@ -461,6 +608,64 @@ const ObraTools: React.FC = () => {
           </div>
        )}
 
+       {/* Return Modal */}
+       {isReturnModalOpen && selectedLoanToReturn && (
+           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsReturnModalOpen(false)}>
+               <div className="w-full max-w-sm rounded-2xl shadow-xl border p-6" style={{ backgroundColor: currentTheme.colors.card, borderColor: currentTheme.colors.border }} onClick={e => e.stopPropagation()}>
+                   <h3 className="text-lg font-bold mb-4" style={{ color: currentTheme.colors.text }}>Confirmar Devolução</h3>
+                   <div className="mb-4 p-3 rounded bg-orange-500/10 border border-orange-500/20">
+                       <p className="font-bold" style={{ color: currentTheme.colors.text }}>{selectedLoanToReturn.itemName}</p>
+                       <p className="text-sm" style={{ color: currentTheme.colors.textSecondary }}>Responsável: {selectedLoanToReturn.workerName}</p>
+                       <p className="text-sm" style={{ color: currentTheme.colors.textSecondary }}>Qtd: {selectedLoanToReturn.quantity}</p>
+                   </div>
+
+                   <form onSubmit={handleSubmitReturn} className="space-y-4">
+                       <div className="grid grid-cols-2 gap-3">
+                           <div>
+                               <label className="block text-sm mb-1" style={labelStyle}>Data *</label>
+                               <input 
+                                   type="date"
+                                   required
+                                   value={returnData.returnDate}
+                                   onChange={e => setReturnData({...returnData, returnDate: e.target.value})}
+                                   className={baseInputClass}
+                                   style={dynamicInputStyle}
+                               />
+                           </div>
+                           <div>
+                               <label className="block text-sm mb-1" style={labelStyle}>Hora *</label>
+                               <input 
+                                   type="time"
+                                   required
+                                   value={returnData.returnTime}
+                                   onChange={e => setReturnData({...returnData, returnTime: e.target.value})}
+                                   className={baseInputClass}
+                                   style={dynamicInputStyle}
+                               />
+                           </div>
+                       </div>
+
+                       <div>
+                           <label className="block text-sm mb-1" style={labelStyle}>Observações de Devolução</label>
+                           <textarea 
+                               value={returnData.notes}
+                               onChange={e => setReturnData({...returnData, notes: e.target.value})}
+                               className={baseInputClass}
+                               style={dynamicInputStyle}
+                               placeholder="Ex: Item devolvido com avaria..."
+                               rows={2}
+                           />
+                       </div>
+
+                       <div className="flex gap-2 pt-2">
+                           <Button type="button" variant="secondary" onClick={() => setIsReturnModalOpen(false)} className="flex-1">Cancelar</Button>
+                           <Button type="submit" className="flex-1">Confirmar</Button>
+                       </div>
+                   </form>
+               </div>
+           </div>
+       )}
+
        {/* Manage Tool List Modal */}
        {isManageListOpen && (
            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsManageListOpen(false)}>
@@ -480,16 +685,18 @@ const ObraTools: React.FC = () => {
                        />
                    </div>
                    <div className="flex-1 overflow-y-auto p-2">
-                       {inventory
+                       {allManageableItems
                            .filter(i => i.name.toLowerCase().includes(manageSearch.toLowerCase()))
                            .map(item => (
-                               <div key={item.id} className="flex items-center justify-between p-3 hover:bg-white/5 rounded cursor-pointer" onClick={() => toggleItemAsTool(item)}>
+                               <div key={`${item.type}-${item.id}`} className="flex items-center justify-between p-3 hover:bg-white/5 rounded cursor-pointer" onClick={() => toggleItemAsTool(item)}>
                                    <div>
                                        <p className="font-medium" style={{ color: currentTheme.colors.text }}>{item.name}</p>
-                                       <p className="text-xs opacity-60" style={{ color: currentTheme.colors.textSecondary }}>{item.category}</p>
+                                       <p className="text-xs opacity-60" style={{ color: currentTheme.colors.textSecondary }}>
+                                           {item.category} • {item.type === 'RENTED' ? 'Alugado' : 'Próprio'}
+                                       </p>
                                    </div>
-                                   <div className={`transition-colors ${item.isTool ? 'text-blue-500' : 'text-gray-400'}`}>
-                                       {item.isTool ? <CheckSquare size={24} /> : <Square size={24} />}
+                                   <div className={`transition-colors ${isTool(item) ? 'text-blue-500' : 'text-gray-400'}`}>
+                                       {isTool(item) ? <CheckSquare size={24} /> : <Square size={24} />}
                                    </div>
                                </div>
                            ))}

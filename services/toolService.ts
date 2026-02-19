@@ -39,6 +39,7 @@ export const toolService = {
     const ref = collection(db, 'construction_sites', siteId, 'tool_loans');
     await addDoc(ref, {
       ...loan,
+      itemOrigin: loan.itemOrigin || 'INVENTORY', 
       siteId,
       status: 'OPEN',
       updatedAt: serverTimestamp(),
@@ -47,12 +48,23 @@ export const toolService = {
   },
 
   // Devolver ferramenta
-  returnLoan: async (siteId: string, loanId: string) => {
+  returnLoan: async (siteId: string, loanId: string, data?: { returnDate: Date, notes?: string }) => {
     const ref = doc(db, 'construction_sites', siteId, 'tool_loans', loanId);
-    await updateDoc(ref, {
-      status: 'RETURNED',
-      returnDate: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    });
+    
+    const updateData: any = {
+        status: 'RETURNED',
+        updatedAt: serverTimestamp()
+    };
+
+    if (data) {
+        updateData.returnDate = data.returnDate;
+        if (data.notes) {
+            updateData.returnNotes = data.notes; // Notes specific to the return action
+        }
+    } else {
+        updateData.returnDate = serverTimestamp();
+    }
+
+    await updateDoc(ref, updateData);
   }
 };

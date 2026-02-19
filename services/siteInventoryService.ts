@@ -1,6 +1,6 @@
 
 import { db } from '../lib/firebase';
-import { collection, getDocs, addDoc, serverTimestamp, query, orderBy, doc, deleteDoc, updateDoc, runTransaction } from 'firebase/firestore';
+import { collection, getDocs, addDoc, serverTimestamp, query, orderBy, doc, deleteDoc, updateDoc, runTransaction, writeBatch } from 'firebase/firestore';
 import { SiteInventoryItem, StockMovement } from '../types';
 
 export const siteInventoryService = {
@@ -22,20 +22,44 @@ export const siteInventoryService = {
         quantity: data.quantity ?? 0,
         averagePrice: data.averagePrice ?? 0,
         minThreshold: data.minThreshold ?? 0,
-        isTool: data.isTool ?? false, // Mapeia o campo
+        isTool: data.isTool, // Pode ser undefined, true ou false
         updatedAt: data.updatedAt?.toDate() || new Date()
       } as SiteInventoryItem;
     });
   },
 
-  // Adiciona um item ao estoque da obra
+  // Adiciona um item ao estoque da obra E registra a movimentação inicial
   addItem: async (siteId: string, item: Omit<SiteInventoryItem, 'id' | 'updatedAt' | 'siteId'>) => {
-    const ref = collection(db, 'construction_sites', siteId, 'inventory');
-    await addDoc(ref, {
+    const batch = writeBatch(db);
+    
+    // 1. Criar referência do novo item
+    const inventoryCollectionRef = collection(db, 'construction_sites', siteId, 'inventory');
+    const newItemRef = doc(inventoryCollectionRef);
+    
+    const timestamp = serverTimestamp();
+
+    batch.set(newItemRef, {
       ...item,
       siteId: siteId, 
-      updatedAt: serverTimestamp()
+      updatedAt: timestamp
     });
+
+    // 2. Se houver quantidade inicial > 0, registrar na subcoleção movements
+    if (item.quantity > 0) {
+        const movementsCollectionRef = collection(db, 'construction_sites', siteId, 'inventory', newItemRef.id, 'movements');
+        const newMovementRef = doc(movementsCollectionRef);
+        
+        batch.set(newMovementRef, {
+            type: 'IN',
+            quantity: item.quantity,
+            reason: 'Cadastro Inicial',
+            date: timestamp,
+            userId: 'SYSTEM', 
+            userName: 'Sistema'
+        });
+    }
+
+    await batch.commit();
   },
 
   // Atualiza quantidade ou configurações do item na obra

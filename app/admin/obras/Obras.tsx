@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { constructionService } from '../../../services/constructionService';
 import { ConstructionSite } from '../../../types';
-import { Plus, Search, Building2, Edit, Trash2, X, LayoutList, LayoutGrid, FolderDot, Calendar } from 'lucide-react';
+import { Plus, Search, Building2, Edit, Trash2, X, LayoutList, LayoutGrid, FolderDot, Calendar, AlertTriangle } from 'lucide-react';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { Button } from '../../../components/ui/Button';
 import { usePermissions } from '../../../contexts/PermissionsContext';
@@ -19,6 +19,10 @@ const ObrasPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  
+  // Delete Modal
+  const [deleteConfirmationId, setDeleteConfirmationId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   // View Mode State
   const [viewMode, setViewMode] = useState<'list' | 'card'>('card'); 
@@ -36,22 +40,31 @@ const ObrasPage: React.FC = () => {
   };
 
   const handleEdit = (e: React.MouseEvent, site: ConstructionSite) => {
+    e.preventDefault();
     e.stopPropagation(); 
     setName(site.name);
     setEditingId(site.id!);
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (e: React.MouseEvent, id: string) => {
+  const handleDeleteClick = (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
     e.stopPropagation(); 
-    if (window.confirm('Tem certeza que deseja excluir esta obra?')) {
-      try {
-        await constructionService.delete(id);
-        await refreshSites(); // Atualiza contexto
-      } catch (error) {
-        console.error("Error deleting site", error);
-        alert("Erro ao excluir obra.");
-      }
+    setDeleteConfirmationId(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirmationId) return;
+    setIsDeleting(true);
+    try {
+      await constructionService.delete(deleteConfirmationId);
+      await refreshSites();
+      setDeleteConfirmationId(null);
+    } catch (error) {
+      console.error("Error deleting site", error);
+      alert("Erro ao excluir obra.");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -221,6 +234,7 @@ const ObrasPage: React.FC = () => {
                           <div className="flex items-center justify-center space-x-2">
                               {hasPermission('obras', 'create') && (
                                 <button 
+                                  type="button"
                                   onClick={(e) => handleEdit(e, site)}
                                   className="p-1.5 rounded hover:bg-blue-500/10 text-blue-500 transition-colors"
                                   title="Editar"
@@ -230,8 +244,9 @@ const ObrasPage: React.FC = () => {
                               )}
                               {hasPermission('obras', 'delete') && (
                                 <button 
-                                  onClick={(e) => handleDelete(e, site.id!)}
-                                  className="p-1.5 rounded hover:bg-red-500/10 text-red-500 transition-colors"
+                                  type="button"
+                                  onClick={(e) => handleDeleteClick(e, site.id!)}
+                                  className="p-1.5 rounded hover:bg-red-500/10 text-red-500 transition-colors z-20 relative"
                                   title="Excluir"
                                 >
                                   <Trash2 size={18} />
@@ -259,9 +274,10 @@ const ObrasPage: React.FC = () => {
                     }}
                  >
                     {/* Actions (Absolute) */}
-                    <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
                         {hasPermission('obras', 'create') && (
                           <button 
+                            type="button"
                             onClick={(e) => handleEdit(e, site)}
                             className="p-1.5 rounded bg-blue-500 text-white hover:bg-blue-600 transition-colors shadow-sm"
                             title="Editar"
@@ -271,7 +287,8 @@ const ObrasPage: React.FC = () => {
                         )}
                         {hasPermission('obras', 'delete') && (
                           <button 
-                            onClick={(e) => handleDelete(e, site.id!)}
+                            type="button"
+                            onClick={(e) => handleDeleteClick(e, site.id!)}
                             className="p-1.5 rounded bg-red-500 text-white hover:bg-red-600 transition-colors shadow-sm"
                             title="Excluir"
                           >
@@ -373,6 +390,50 @@ const ObrasPage: React.FC = () => {
               </div>
 
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmationId && (
+        <div 
+          className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          onClick={() => setDeleteConfirmationId(null)}
+        >
+          <div 
+            className="w-full max-w-sm rounded-xl shadow-2xl border p-6 text-center animate-in zoom-in-95 duration-200"
+            style={{ 
+              backgroundColor: currentTheme.colors.card, 
+              borderColor: currentTheme.colors.border 
+            }} 
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-4">
+              <AlertTriangle className="h-6 w-6 text-red-600" />
+            </div>
+            
+            <h3 className="text-lg font-bold mb-2" style={{ color: currentTheme.colors.text }}>Excluir Obra?</h3>
+            <p className="text-sm mb-6 opacity-80" style={{ color: currentTheme.colors.textSecondary }}>
+              Tem certeza que deseja excluir esta obra? Todos os dados vinculados a ela (estoque, empréstimos) também serão perdidos.
+            </p>
+
+            <div className="flex gap-3 justify-center">
+              <Button 
+                variant="secondary" 
+                onClick={() => setDeleteConfirmationId(null)}
+                className="w-full"
+              >
+                Cancelar
+              </Button>
+              <Button 
+                variant="danger" 
+                onClick={confirmDelete}
+                isLoading={isDeleting}
+                className="w-full"
+              >
+                Sim, Excluir
+              </Button>
+            </div>
           </div>
         </div>
       )}
