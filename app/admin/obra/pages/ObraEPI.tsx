@@ -53,7 +53,12 @@ const ObraEPI: React.FC = () => {
     setLoading(true);
     try {
       // Fetch global collaborators first
-      const globalCollabs = await collaboratorService.getAll();
+      let globalCollabs: Collaborator[] = [];
+      try {
+        globalCollabs = await collaboratorService.getAll();
+      } catch (e) {
+        console.warn("Could not fetch global collaborators:", e);
+      }
       setGlobalCollaborators(globalCollabs);
 
       // Try to fetch site collaborators, handle permission error gracefully
@@ -65,10 +70,21 @@ const ObraEPI: React.FC = () => {
       }
       setSiteCollaborators(siteCollabs);
 
-      const [inventory, history] = await Promise.all([
-        siteInventoryService.getSiteInventory(siteId),
-        epiService.getWithdrawals(siteId)
-      ]);
+      // Fetch Inventory
+      let inventory: SiteInventoryItem[] = [];
+      try {
+        inventory = await siteInventoryService.getSiteInventory(siteId);
+      } catch (e) {
+        console.error("Could not fetch inventory:", e);
+      }
+
+      // Fetch History
+      let history: EPIWithdrawal[] = [];
+      try {
+        history = await epiService.getWithdrawals(siteId);
+      } catch (e) {
+        console.warn("Could not fetch EPI history:", e);
+      }
       
       // Filter inventory for EPI items (broader filter)
       const epis = inventory.filter(item => {

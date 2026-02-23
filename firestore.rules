@@ -89,6 +89,16 @@ service cloud.firestore {
          allow read: if true;
          allow write: if true;
       }
+
+      match /collaborators/{collabId} {
+         allow read: if true;
+         allow write: if true;
+      }
+
+      match /epi_withdrawals/{withdrawalId} {
+         allow read: if true;
+         allow write: if true;
+      }
     }
 
     match /colaboradores/{colaboradorId} {
