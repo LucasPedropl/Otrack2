@@ -1,17 +1,32 @@
-
 import React, { useEffect, useState } from 'react';
-import { useParams, NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { useParams, NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { constructionService } from '../../../services/constructionService';
 import { ConstructionSite } from '../../../types';
-import { Building2, Settings, LayoutDashboard, Package, ArrowLeftRight, Loader2, Hammer, Truck, HardHat } from 'lucide-react';
+import { 
+  LayoutDashboard, Package, ArrowLeftRight, 
+  Loader2, Hammer, Truck, HardHat, Menu, X,
+  ChevronLeft, ChevronRight, Building2
+} from 'lucide-react';
 
 const ObraRoot: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { currentTheme } = useTheme();
   const [site, setSite] = useState<ConstructionSite | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    const saved = localStorage.getItem('obralog_obra_sidebar_collapsed');
+    return saved === 'true';
+  });
+
+  const toggleSidebar = () => {
+    const newState = !isSidebarCollapsed;
+    setIsSidebarCollapsed(newState);
+    localStorage.setItem('obralog_obra_sidebar_collapsed', String(newState));
+  };
 
   useEffect(() => {
     const fetchSite = async () => {
@@ -32,6 +47,11 @@ const ObraRoot: React.FC = () => {
     fetchSite();
   }, [id, navigate]);
 
+  // Close mobile menu on route change
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [location.pathname]);
+
   if (loading) {
     return (
       <div className="h-full w-full flex items-center justify-center">
@@ -42,7 +62,7 @@ const ObraRoot: React.FC = () => {
 
   if (!site) return null;
 
-  const tabs = [
+  const navItems = [
     { path: 'overview', label: 'Visão Geral', icon: LayoutDashboard },
     { path: 'inventory', label: 'Almoxarifado', icon: Package },
     { path: 'tools', label: 'Ferramentas', icon: Hammer },
@@ -51,90 +71,221 @@ const ObraRoot: React.FC = () => {
     { path: 'movements', label: 'Movimentações', icon: ArrowLeftRight },
   ];
 
+  const quickActions = [
+    { label: 'Retirada EPI', icon: HardHat, action: () => navigate(`/admin/obra/${id}/epi`) },
+    { label: 'Empréstimo', icon: Hammer, action: () => navigate(`/admin/obra/${id}/tools`) },
+    { label: 'Novo Insumo', icon: Package, action: () => navigate(`/admin/obra/${id}/inventory`) },
+    { label: 'Novo Equipamento', icon: Truck, action: () => navigate(`/admin/obra/${id}/rented`) },
+  ];
+
+  const getSidebarItemStyle = (isActive: boolean) => ({
+    backgroundColor: isActive ? 
+        (currentTheme.isDark || ['#000000', '#09090b', '#18181b'].includes(currentTheme.colors.sidebar) ? 'rgba(255,255,255,0.12)' : `${currentTheme.colors.primary}15`) 
+        : 'transparent',
+    color: currentTheme.colors.sidebarText,
+    opacity: isActive ? 1 : 0.7,
+    fontWeight: isActive ? 600 : 400
+  });
+
+  const currentPath = location.pathname.split('/').pop();
+  const currentNavItem = navItems.find(item => item.path === currentPath);
+  const pageTitle = currentNavItem ? currentNavItem.label : '';
+
   return (
-    <div className="flex flex-col h-full">
-      {/* Header Container */}
-      <div 
-        className="flex-shrink-0 border-b shadow-sm z-10"
+    <div className="flex flex-row h-full relative overflow-hidden">
+      
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden relative" style={{ backgroundColor: currentTheme.colors.background }}>
+        {pageTitle && (
+          <div className="px-4 md:px-8 pt-6 pb-2 shrink-0">
+             <h1 className="text-2xl font-bold" style={{ color: currentTheme.colors.text }}>{pageTitle}</h1>
+          </div>
+        )}
+        <div 
+            className={`flex-1 overflow-y-auto px-4 md:px-8 ${pageTitle ? 'pt-4' : 'pt-8'} pb-8 no-scrollbar`}
+        >
+          <Outlet />
+        </div>
+      </div>
+
+      {/* Desktop Right Sidebar (Collapsible) */}
+      <aside 
+        className={`hidden md:flex flex-col flex-shrink-0 border-l transition-all duration-300 ease-in-out relative ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}
         style={{ 
-          backgroundColor: currentTheme.colors.background === '#f8fafc' ? '#ffffff' : currentTheme.colors.card, // Ligeiro contraste se for tema light
-          borderColor: currentTheme.colors.border
+          backgroundColor: currentTheme.colors.sidebar,
+          borderColor: currentTheme.colors.border,
+          color: currentTheme.colors.sidebarText
         }}
       >
-        {/* Main Title Row */}
-        <div className="px-6 py-6 flex flex-col md:flex-row md:items-start justify-between gap-4">
-            <div className="flex items-center gap-4">
-               {/* Icon Box */}
-               <div 
-                  className="p-3 rounded-xl shadow-sm border"
-                  style={{ 
-                    backgroundColor: currentTheme.colors.background,
-                    borderColor: currentTheme.colors.border
-                  }}
-               >
-                  <Building2 className="h-8 w-8" style={{ color: currentTheme.colors.primary }} />
-               </div>
+         <div className={`relative p-6 border-b border-white/10 flex items-center ${isSidebarCollapsed ? 'justify-center' : ''}`}>
+            {isSidebarCollapsed ? (
+                <Building2 className="h-6 w-6" />
+            ) : (
+                <div>
+                    <h2 className="text-lg font-bold leading-tight truncate">{site.name}</h2>
+                    <p className="text-xs opacity-60 mt-1">Gestão de Obra</p>
+                </div>
+            )}
 
-               {/* Text Info */}
-               <div>
-                  <h1 className="text-2xl font-bold leading-tight" style={{ color: currentTheme.colors.text }}>
-                    {site.name}
-                  </h1>
-               </div>
-            </div>
+            {/* Toggle Button */}
+            <button 
+                onClick={toggleSidebar}
+                className="absolute flex items-center justify-center h-6 w-6 rounded-lg border border-solid shadow-sm z-50 transition-colors hover:bg-white/10"
+                style={{ 
+                    left: 0,
+                    bottom: 0,
+                    transform: 'translate(-50%, 50%)',
+                    backgroundColor: currentTheme.colors.sidebar, 
+                    borderColor: `${currentTheme.colors.sidebarText}1F`,
+                    color: currentTheme.colors.sidebarText
+                }}
+            >
+                {isSidebarCollapsed ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
+            </button>
+         </div>
 
-            {/* Actions */}
-            <div className="flex items-center gap-2 self-start md:self-center">
-               <button 
-                  onClick={() => navigate(`/admin/obra/${id}/settings`)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors hover:bg-white/5"
-                  style={{ 
-                    borderColor: currentTheme.colors.border,
-                    color: currentTheme.colors.text
-                  }}
-               >
-                  <Settings size={18} />
-                  <span className="hidden sm:inline">Configurar</span>
-               </button>
-            </div>
-        </div>
-
-        {/* Tab Navigation Bar */}
-        <div className="px-6 mt-2 flex items-center gap-8 overflow-x-auto no-scrollbar">
-            {tabs.map((tab) => (
+         <nav className="p-4 space-y-1 overflow-y-auto overflow-x-hidden">
+           {navItems.map((item) => (
               <NavLink
-                key={tab.path}
-                to={`/admin/obra/${id}/${tab.path}`}
-                className={({ isActive }) => `
-                  relative flex items-center gap-2 pb-4 text-sm font-medium transition-all whitespace-nowrap
-                  ${isActive ? 'opacity-100' : 'opacity-60 hover:opacity-100'}
-                `}
-                style={({ isActive }) => ({
-                  color: isActive ? currentTheme.colors.primary : currentTheme.colors.text,
-                })}
+                key={item.path}
+                to={`/admin/obra/${id}/${item.path}`}
+                className={`flex items-center ${isSidebarCollapsed ? 'justify-center' : 'gap-3'} px-4 py-3 rounded-lg text-sm transition-all hover:bg-white/5 group relative`}
+                style={({ isActive }) => getSidebarItemStyle(isActive)}
+                title={isSidebarCollapsed ? item.label : ''}
               >
-                {({ isActive }) => (
-                  <>
-                    <tab.icon size={18} />
-                    {tab.label}
-                    {/* Active Bottom Border Line */}
-                    {isActive && (
-                      <div 
-                        className="absolute bottom-0 left-0 right-0 h-[2px] rounded-t-full transition-all"
-                        style={{ backgroundColor: currentTheme.colors.primary }}
-                      />
-                    )}
-                  </>
-                )}
+                <item.icon size={18} className="flex-shrink-0" />
+                {!isSidebarCollapsed && <span className="whitespace-nowrap">{item.label}</span>}
               </NavLink>
-            ))}
-        </div>
+           ))}
+         </nav>
+      </aside>
+
+      {/* Mobile Bottom Navigation */}
+      <div 
+        className="md:hidden fixed bottom-0 left-0 right-0 border-t flex justify-around items-center p-2 pb-safe z-40"
+        style={{ 
+            backgroundColor: currentTheme.colors.card,
+            borderColor: currentTheme.colors.border
+        }}
+      >
+          <NavLink 
+            to={`/admin/obra/${id}/overview`}
+            className={({ isActive }) => `p-3 rounded-xl flex flex-col items-center gap-1 ${isActive ? 'opacity-100' : 'opacity-50'}`}
+            style={({ isActive }) => ({ color: isActive ? currentTheme.colors.primary : currentTheme.colors.text })}
+          >
+             <LayoutDashboard size={24} />
+             <span className="text-[10px]">Visão</span>
+          </NavLink>
+          
+          <NavLink 
+            to={`/admin/obra/${id}/inventory`}
+            className={({ isActive }) => `p-3 rounded-xl flex flex-col items-center gap-1 ${isActive ? 'opacity-100' : 'opacity-50'}`}
+            style={({ isActive }) => ({ color: isActive ? currentTheme.colors.primary : currentTheme.colors.text })}
+          >
+             <Package size={24} />
+             <span className="text-[10px]">Estoque</span>
+          </NavLink>
+
+          <NavLink 
+            to={`/admin/obra/${id}/tools`}
+            className={({ isActive }) => `p-3 rounded-xl flex flex-col items-center gap-1 ${isActive ? 'opacity-100' : 'opacity-50'}`}
+            style={({ isActive }) => ({ color: isActive ? currentTheme.colors.primary : currentTheme.colors.text })}
+          >
+             <Hammer size={24} />
+             <span className="text-[10px]">Ferr.</span>
+          </NavLink>
+
+          <button 
+            onClick={() => setIsMobileMenuOpen(true)}
+            className="p-3 rounded-xl flex flex-col items-center gap-1 opacity-50 hover:opacity-100"
+            style={{ color: currentTheme.colors.text }}
+          >
+             <Menu size={24} />
+             <span className="text-[10px]">Menu</span>
+          </button>
       </div>
 
-      {/* Content Area */}
-      <div className="flex-1 overflow-y-auto p-6 md:p-8" style={{ backgroundColor: currentTheme.colors.background }}>
-        <Outlet />
-      </div>
+      {/* Mobile Menu Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+            className="fixed inset-0 z-[60] flex flex-col animate-in slide-in-from-bottom-10 fade-in duration-200"
+        >
+            {/* Backdrop */}
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)} />
+            
+            {/* Content */}
+            <div 
+                className="absolute inset-0 flex flex-col p-6 z-10"
+                style={{ backgroundColor: currentTheme.colors.background }}
+            >
+                <div className="flex justify-between items-center mb-8">
+                    <div>
+                        <h2 className="text-2xl font-bold" style={{ color: currentTheme.colors.text }}>Menu</h2>
+                        <p className="text-sm opacity-60" style={{ color: currentTheme.colors.textSecondary }}>{site.name}</p>
+                    </div>
+                    <button 
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="p-2 rounded-full hover:bg-black/5"
+                        style={{ color: currentTheme.colors.text }}
+                    >
+                        <X size={28} />
+                    </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto space-y-8 pb-20">
+                    {/* Quick Actions Grid */}
+                    <section>
+                        <h3 className="text-sm font-bold opacity-50 mb-4 uppercase" style={{ color: currentTheme.colors.textSecondary }}>Ações Rápidas</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                            {quickActions.map((qa, idx) => (
+                                <button 
+                                    key={idx} 
+                                    onClick={() => { qa.action(); setIsMobileMenuOpen(false); }}
+                                    className="p-4 rounded-2xl border flex flex-col items-center gap-3 transition-colors active:scale-95"
+                                    style={{ 
+                                        backgroundColor: currentTheme.colors.card,
+                                        borderColor: currentTheme.colors.border,
+                                        color: currentTheme.colors.text
+                                    }}
+                                >
+                                    <div className="p-3 rounded-full bg-opacity-10" style={{ backgroundColor: currentTheme.colors.primary + '20', color: currentTheme.colors.primary }}>
+                                        <qa.icon size={24} />
+                                    </div>
+                                    <span className="text-sm font-medium text-center">{qa.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </section>
+
+                    {/* All Navigation Links */}
+                    <section>
+                        <h3 className="text-sm font-bold opacity-50 mb-4 uppercase" style={{ color: currentTheme.colors.textSecondary }}>Navegação</h3>
+                        <div className="flex flex-col gap-2">
+                            {navItems.map((item) => (
+                                <NavLink
+                                    key={item.path}
+                                    to={`/admin/obra/${id}/${item.path}`}
+                                    onClick={() => setIsMobileMenuOpen(false)}
+                                    className={({ isActive }) => `
+                                        flex items-center gap-4 p-4 rounded-xl border transition-all
+                                        ${isActive ? 'border-opacity-100' : 'border-opacity-50'}
+                                    `}
+                                    style={({ isActive }) => ({
+                                        backgroundColor: currentTheme.colors.card,
+                                        borderColor: isActive ? currentTheme.colors.primary : currentTheme.colors.border,
+                                        color: isActive ? currentTheme.colors.primary : currentTheme.colors.text
+                                    })}
+                                >
+                                    <item.icon size={20} />
+                                    <span className="font-medium">{item.label}</span>
+                                </NavLink>
+                            ))}
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </div>
+      )}
     </div>
   );
 };

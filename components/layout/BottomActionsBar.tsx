@@ -12,6 +12,7 @@ interface BottomActionsBarProps {
   onExport: () => void;
   isExporting?: boolean;
   isImporting?: boolean;
+  staticPosition?: boolean;
   
   // Selection Props
   selectedCount?: number;
@@ -32,7 +33,8 @@ export const BottomActionsBar: React.FC<BottomActionsBarProps> = ({
   selectedCount = 0,
   onDeleteSelected,
   onCancelSelection,
-  isDeleting = false
+  isDeleting = false,
+  staticPosition = false
 }) => {
   const { currentTheme } = useTheme();
 
@@ -95,19 +97,22 @@ export const BottomActionsBar: React.FC<BottomActionsBarProps> = ({
   // Standard Pagination Mode
   return (
     <div 
-      className="absolute bottom-0 left-0 right-0 z-40 transition-colors duration-300"
+      className={`${staticPosition ? 'w-full mt-8 rounded-xl border' : 'absolute bottom-0 left-0 right-0'} z-40 transition-colors duration-300`}
       style={{ 
         backgroundColor: currentTheme.colors.sidebar,
+        borderColor: staticPosition ? currentTheme.colors.border : undefined
       }}
     >
-      {/* Physical 1px line at top */}
-      <div 
-        className="absolute top-0 left-0 right-0 h-[1px]" 
-        style={{ 
-          backgroundColor: currentTheme.colors.sidebarText, 
-          opacity: 0.12 
-        }} 
-      />
+      {/* Physical 1px line at top - Only if not static */}
+      {!staticPosition && (
+        <div 
+          className="absolute top-0 left-0 right-0 h-[1px]" 
+          style={{ 
+            backgroundColor: currentTheme.colors.sidebarText, 
+            opacity: 0.12 
+          }} 
+        />
+      )}
 
       <div className="flex flex-col sm:flex-row items-center justify-between px-6 py-4 gap-4">
         
