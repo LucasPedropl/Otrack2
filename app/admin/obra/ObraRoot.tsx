@@ -89,7 +89,7 @@ const ObraRoot: React.FC = () => {
 
   const currentPath = location.pathname.split('/').pop();
   const currentNavItem = navItems.find(item => item.path === currentPath);
-  const pageTitle = currentNavItem ? currentNavItem.label : '';
+  const pageTitle = currentNavItem ? `${site.name} - ${currentNavItem.label}` : site.name;
 
   return (
     <div className="flex flex-row h-full relative overflow-hidden">
@@ -117,34 +117,23 @@ const ObraRoot: React.FC = () => {
           color: currentTheme.colors.sidebarText
         }}
       >
-         <div className={`relative p-6 border-b border-white/10 flex items-center ${isSidebarCollapsed ? 'justify-center' : ''}`}>
-            {isSidebarCollapsed ? (
-                <Building2 className="h-6 w-6" />
-            ) : (
-                <div>
-                    <h2 className="text-lg font-bold leading-tight truncate">{site.name}</h2>
-                    <p className="text-xs opacity-60 mt-1">Gestão de Obra</p>
-                </div>
-            )}
+         {/* Toggle Button */}
+         <button 
+            onClick={toggleSidebar}
+            className="absolute flex items-center justify-center h-6 w-6 rounded-lg border border-solid shadow-sm z-50 transition-colors hover:bg-white/10"
+            style={{ 
+                left: 0,
+                top: 24, // Align roughly with the top of the menu or page title
+                transform: 'translate(-50%, 0)',
+                backgroundColor: currentTheme.colors.sidebar, 
+                borderColor: `${currentTheme.colors.sidebarText}1F`,
+                color: currentTheme.colors.sidebarText
+            }}
+         >
+            {isSidebarCollapsed ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
+         </button>
 
-            {/* Toggle Button */}
-            <button 
-                onClick={toggleSidebar}
-                className="absolute flex items-center justify-center h-6 w-6 rounded-lg border border-solid shadow-sm z-50 transition-colors hover:bg-white/10"
-                style={{ 
-                    left: 0,
-                    bottom: 0,
-                    transform: 'translate(-50%, 50%)',
-                    backgroundColor: currentTheme.colors.sidebar, 
-                    borderColor: `${currentTheme.colors.sidebarText}1F`,
-                    color: currentTheme.colors.sidebarText
-                }}
-            >
-                {isSidebarCollapsed ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
-            </button>
-         </div>
-
-         <nav className="p-4 space-y-1 overflow-y-auto overflow-x-hidden">
+         <nav className="p-4 mt-8 space-y-1 overflow-y-auto overflow-x-hidden">
            {navItems.map((item) => (
               <NavLink
                 key={item.path}

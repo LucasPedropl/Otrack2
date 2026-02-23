@@ -243,6 +243,7 @@ const ObraMovements: React.FC = () => {
         onPageChange={setCurrentPage}
         onImport={() => {}}
         onExport={handleExport}
+        staticPosition={true}
       />
 
       {/* DETAIL MODAL */}

@@ -532,6 +532,7 @@ const ObraInventory: React.FC = () => {
         onPageChange={setCurrentPage}
         onImport={() => alert("Importação em breve")}
         onExport={handleExport}
+        staticPosition={true}
       />
 
       {/* ADJUSTMENT MODAL */}
