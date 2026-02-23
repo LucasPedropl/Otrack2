@@ -4,7 +4,7 @@ import { useParams, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { constructionService } from '../../../services/constructionService';
 import { ConstructionSite } from '../../../types';
-import { Building2, Settings, LayoutDashboard, Package, ArrowLeftRight, Loader2, Hammer, Truck } from 'lucide-react';
+import { Building2, Settings, LayoutDashboard, Package, ArrowLeftRight, Loader2, Hammer, Truck, HardHat } from 'lucide-react';
 
 const ObraRoot: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -46,6 +46,7 @@ const ObraRoot: React.FC = () => {
     { path: 'overview', label: 'Visão Geral', icon: LayoutDashboard },
     { path: 'inventory', label: 'Almoxarifado', icon: Package },
     { path: 'tools', label: 'Ferramentas', icon: Hammer },
+    { path: 'epi', label: 'EPIs', icon: HardHat },
     { path: 'rented', label: 'Equip. Alugados', icon: Truck },
     { path: 'movements', label: 'Movimentações', icon: ArrowLeftRight },
   ];

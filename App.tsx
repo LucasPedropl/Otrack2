@@ -4,16 +4,19 @@ import { HashRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import LoginPage from './app/(auth)/login/Login';
 import DashboardPage from './app/admin/dashboard/Dashboard';
 import SettingsPage from './app/admin/settings/Settings';
+import SettingsPlaceholder from './app/admin/settings/SettingsPlaceholder';
 import InsumosPage from './app/admin/insumos/Insumos';
 import ObrasPage from './app/admin/obras/Obras';
 import UnidadesPage from './app/admin/unidades/UnidadesPage';
 import CategoriasPage from './app/admin/categorias/CategoriasPage';
+import ColaboradoresPage from './app/admin/colaboradores/ColaboradoresPage';
 import PlaceholderPage from './app/admin/placeholders/Placeholder';
 import ObraRoot from './app/admin/obra/ObraRoot';
 import ObraOverview from './app/admin/obra/pages/ObraOverview';
 import ObraInventory from './app/admin/obra/pages/ObraInventory';
 import ObraMovements from './app/admin/obra/pages/ObraMovements';
 import ObraTools from './app/admin/obra/pages/ObraTools';
+import ObraEPI from './app/admin/obra/pages/ObraEPI';
 import ObraRented from './app/admin/obra/pages/ObraRented';
 import PerfisPage from './app/admin/perfis/PerfisPage';
 import UsuariosPage from './app/admin/usuarios/UsuariosPage';
@@ -54,12 +57,15 @@ const App: React.FC = () => {
                 {/* Dashboard tem sua própria verificação interna de permissão no PermissionGate */}
                 <Route path="/admin/dashboard" element={<PermissionGate module="dashboard"><DashboardPage /></PermissionGate>} />
                 <Route path="/admin/settings" element={<SettingsPage />} />
+                <Route path="/admin/dados" element={<SettingsPlaceholder />} />
 
                 <Route path="/admin/obras" element={<PermissionGate module="obras"><ObrasPage /></PermissionGate>} />
                 
                 <Route path="/admin/insumos" element={<PermissionGate module="orcamento_insumos"><InsumosPage /></PermissionGate>} />
                 <Route path="/admin/unidades" element={<PermissionGate module="orcamento_unidades"><UnidadesPage /></PermissionGate>} />
                 <Route path="/admin/categorias" element={<PermissionGate module="orcamento_categorias"><CategoriasPage /></PermissionGate>} />
+
+                <Route path="/admin/colaboradores" element={<PermissionGate module="mao_obra_colaboradores"><ColaboradoresPage /></PermissionGate>} />
 
                 <Route path="/admin/perfis" element={<PermissionGate module="acesso_perfis"><PerfisPage /></PermissionGate>} />
                 <Route path="/admin/usuarios" element={<PermissionGate module="acesso_usuarios"><UsuariosPage /></PermissionGate>} />
@@ -69,6 +75,7 @@ const App: React.FC = () => {
                    <Route path="overview" element={<ObraOverview />} />
                    <Route path="inventory" element={<ObraInventory />} />
                    <Route path="tools" element={<ObraTools />} />
+                   <Route path="epi" element={<ObraEPI />} />
                    <Route path="rented" element={<ObraRented />} />
                    <Route path="movements" element={<ObraMovements />} />
                    <Route path="settings" element={<PlaceholderPage title="Configurações da Obra" description="Ajustes específicos." />} />

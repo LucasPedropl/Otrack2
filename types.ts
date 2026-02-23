@@ -76,6 +76,18 @@ export interface ToolLoan {
   updatedAt: Date;
 }
 
+export interface EPIWithdrawal {
+  id?: string;
+  siteId: string;
+  collaboratorId: string;
+  collaboratorName: string;
+  itemId: string;
+  itemName: string;
+  quantity: number;
+  date: Date;
+  notes?: string;
+}
+
 export interface RentedEquipment {
   id?: string;
   siteId: string;

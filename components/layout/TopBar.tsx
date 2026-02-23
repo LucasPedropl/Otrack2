@@ -4,7 +4,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useSidebar } from '../../contexts/SidebarContext';
 import { authService } from '../../services/authService';
 import { accessProfileService } from '../../services/accessProfileService';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Search, Settings, Menu, LogOut, User as UserIcon, ChevronDown } from 'lucide-react';
 import { User, AccessProfile } from '../../types';
 
@@ -18,6 +18,7 @@ export const TopBar: React.FC<TopBarProps> = ({ onToggleSettings, isSettingsOpen
   const { currentTheme } = useTheme();
   const { toggleMobileSidebar } = useSidebar();
   const navigate = useNavigate();
+  const location = useLocation();
   
   const [user, setUser] = useState<User | null>(authService.getCurrentUser());
   const [profileName, setProfileName] = useState<string>('');
@@ -117,13 +118,19 @@ export const TopBar: React.FC<TopBarProps> = ({ onToggleSettings, isSettingsOpen
          {/* Botão de Configurações */}
          {hasSettingsAccess && (
            <button 
-             onClick={onToggleSettings}
+             onClick={() => {
+               if (location.pathname === '/admin/dados') {
+                 navigate('/admin/dashboard');
+               } else {
+                 navigate('/admin/dados');
+               }
+             }}
              className={`p-2 rounded-lg transition-all hover:bg-white/10`}
              style={{ 
-               backgroundColor: isSettingsOpen ? currentTheme.colors.primary : 'transparent',
-               border: `1px solid ${isSettingsOpen ? currentTheme.colors.primary : 'transparent'}`,
-               color: isSettingsOpen ? '#fff' : currentTheme.colors.sidebarText,
-               opacity: isSettingsOpen ? 1 : 0.8
+               backgroundColor: location.pathname.startsWith('/admin/dados') || isSettingsOpen ? currentTheme.colors.primary : 'transparent',
+               border: `1px solid ${location.pathname.startsWith('/admin/dados') || isSettingsOpen ? currentTheme.colors.primary : 'transparent'}`,
+               color: location.pathname.startsWith('/admin/dados') || isSettingsOpen ? '#fff' : currentTheme.colors.sidebarText,
+               opacity: location.pathname.startsWith('/admin/dados') || isSettingsOpen ? 1 : 0.8
              }}
              title="Configurações e Cadastros"
            >
