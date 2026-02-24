@@ -17,6 +17,7 @@ const ObraRoot: React.FC = () => {
   const [site, setSite] = useState<ConstructionSite | null>(null);
   const [loading, setLoading] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [hoveredTooltip, setHoveredTooltip] = useState<{ label: string; top: number, left: number } | null>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     const saved = localStorage.getItem('obralog_obra_sidebar_collapsed');
     return saved === 'true';
@@ -87,9 +88,21 @@ const ObraRoot: React.FC = () => {
     fontWeight: isActive ? 600 : 400
   });
 
+  const handleTooltip = (e: React.MouseEvent<HTMLElement>, label: string) => {
+    if (window.innerWidth < 768 || !isSidebarCollapsed) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    setHoveredTooltip({
+      label,
+      top: rect.top + (rect.height / 2),
+      left: rect.left - 10
+    });
+  };
+
+  const handleTooltipLeave = () => setHoveredTooltip(null);
+
   const currentPath = location.pathname.split('/').pop();
   const currentNavItem = navItems.find(item => item.path === currentPath);
-  const pageTitle = currentNavItem ? `${site.name} - ${currentNavItem.label}` : site.name;
+  const pageTitle = currentNavItem ? currentNavItem.label : '';
 
   return (
     <div className="flex flex-row h-full relative overflow-hidden">
@@ -98,11 +111,15 @@ const ObraRoot: React.FC = () => {
       <div className="flex-1 flex flex-col h-full overflow-hidden relative" style={{ backgroundColor: currentTheme.colors.background }}>
         {pageTitle && (
           <div className="px-4 md:px-8 pt-6 pb-2 shrink-0">
-             <h1 className="text-2xl font-bold" style={{ color: currentTheme.colors.text }}>{pageTitle}</h1>
+             <h1 className="text-2xl font-bold" style={{ color: currentTheme.colors.text }}>
+               <span className="opacity-40 font-normal">{site.name}</span>
+               <span className="mx-3 opacity-20">—</span>
+               <span>{pageTitle}</span>
+             </h1>
           </div>
         )}
         <div 
-            className={`flex-1 overflow-y-auto px-4 md:px-8 ${pageTitle ? 'pt-4' : 'pt-8'} pb-8 no-scrollbar`}
+            className={`flex-1 overflow-y-auto px-4 md:px-8 ${pageTitle ? 'pt-4' : 'pt-8'} pb-24 md:pb-8 no-scrollbar`}
         >
           <Outlet />
         </div>
@@ -117,30 +134,31 @@ const ObraRoot: React.FC = () => {
           color: currentTheme.colors.sidebarText
         }}
       >
-         {/* Toggle Button */}
-         <button 
+        {/* Toggle Button */}
+        <button 
             onClick={toggleSidebar}
             className="absolute flex items-center justify-center h-6 w-6 rounded-lg border border-solid shadow-sm z-50 transition-colors hover:bg-white/10"
             style={{ 
                 left: 0,
-                top: 24, // Align roughly with the top of the menu or page title
-                transform: 'translate(-50%, 0)',
+                top: '50%',
+                transform: 'translate(-50%, -50%)',
                 backgroundColor: currentTheme.colors.sidebar, 
                 borderColor: `${currentTheme.colors.sidebarText}1F`,
                 color: currentTheme.colors.sidebarText
             }}
-         >
+        >
             {isSidebarCollapsed ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
-         </button>
+        </button>
 
-         <nav className="p-4 mt-8 space-y-1 overflow-y-auto overflow-x-hidden">
+         <nav className="p-4 pt-8 space-y-1 overflow-y-auto overflow-x-hidden no-scrollbar">
            {navItems.map((item) => (
               <NavLink
                 key={item.path}
                 to={`/admin/obra/${id}/${item.path}`}
+                onMouseEnter={(e) => handleTooltip(e, item.label)}
+                onMouseLeave={handleTooltipLeave}
                 className={`flex items-center ${isSidebarCollapsed ? 'justify-center' : 'gap-3'} px-4 py-3 rounded-lg text-sm transition-all hover:bg-white/5 group relative`}
                 style={({ isActive }) => getSidebarItemStyle(isActive)}
-                title={isSidebarCollapsed ? item.label : ''}
               >
                 <item.icon size={18} className="flex-shrink-0" />
                 {!isSidebarCollapsed && <span className="whitespace-nowrap">{item.label}</span>}
@@ -221,7 +239,7 @@ const ObraRoot: React.FC = () => {
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto space-y-8 pb-20">
+                <div className="flex-1 overflow-y-auto space-y-8 pb-20 no-scrollbar">
                     {/* Quick Actions Grid */}
                     <section>
                         <h3 className="text-sm font-bold opacity-50 mb-4 uppercase" style={{ color: currentTheme.colors.textSecondary }}>Ações Rápidas</h3>
@@ -273,6 +291,23 @@ const ObraRoot: React.FC = () => {
                     </section>
                 </div>
             </div>
+        </div>
+      )}
+
+      {/* Tooltip for collapsed sidebar */}
+      {hoveredTooltip && (
+        <div 
+          className="fixed z-[100] px-3 py-2 text-sm font-medium rounded-md shadow-lg pointer-events-none animate-in fade-in zoom-in-95 duration-200 whitespace-nowrap"
+          style={{ 
+            top: hoveredTooltip.top, 
+            left: hoveredTooltip.left,
+            transform: 'translate(-100%, -50%)',
+            backgroundColor: currentTheme.colors.card,
+            color: currentTheme.colors.text,
+            border: `1px solid ${currentTheme.colors.border}`
+          }}
+        >
+          {hoveredTooltip.label}
         </div>
       )}
     </div>

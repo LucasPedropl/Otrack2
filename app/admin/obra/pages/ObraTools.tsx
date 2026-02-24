@@ -6,7 +6,7 @@ import { siteInventoryService } from '../../../../services/siteInventoryService'
 import { toolService } from '../../../../services/toolService';
 import { rentedEquipmentService } from '../../../../services/rentedEquipmentService';
 import { SiteInventoryItem, ToolLoan, RentedEquipment } from '../../../../types';
-import { Search, Hammer, User, ArrowRight, CheckCircle, RotateCcw, AlertCircle, Filter, X, Clock, Settings, CheckSquare, Square, Truck, ExternalLink, LayoutList, LayoutGrid, Calendar } from 'lucide-react';
+import { Search, Hammer, User, ArrowRight, CheckCircle, RotateCcw, AlertCircle, Filter, X, Clock, Settings, CheckSquare, Square, Truck, ExternalLink, LayoutList, LayoutGrid, Calendar, ChevronDown } from 'lucide-react';
 import { Button } from '../../../../components/ui/Button';
 
 // Categorias padrão que consideramos "Ferramentas" para o filtro inteligente (Fallback)
@@ -41,8 +41,20 @@ const ObraTools: React.FC = () => {
   const [viewMode, setViewMode] = useState<'list' | 'card'>('list');
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [showCategoryOptions, setShowCategoryOptions] = useState(false);
+  const categoryRef = React.useRef<HTMLDivElement>(null);
   
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (categoryRef.current && !categoryRef.current.contains(event.target as Node)) {
+        setShowCategoryOptions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Modal Loan
   const [isLoanModalOpen, setIsLoanModalOpen] = useState(false);
@@ -243,6 +255,7 @@ const ObraTools: React.FC = () => {
           id: i.id!,
           name: i.name,
           type: 'OWNED' as const,
+          supplier: undefined,
           quantity: i.quantity,
           available: getAvailableQuantity(i),
           unit: i.unit,

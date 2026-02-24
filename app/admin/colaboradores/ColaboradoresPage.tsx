@@ -278,6 +278,8 @@ const ColaboradoresPage: React.FC = () => {
         currentPage={currentPage}
         itemsPerPage={itemsPerPage}
         onPageChange={setCurrentPage}
+        onImport={() => {}}
+        onExport={() => {}}
         selectedCount={selectedIds.size}
         onDeleteSelected={hasPermission('mao_obra_colaboradores', 'delete') ? handleBulkDeleteClick : undefined}
         onCancelSelection={() => setSelectedIds(new Set())}

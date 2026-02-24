@@ -246,7 +246,7 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
       {/* Tooltip for primary sidebar */}
       {hoveredTooltip && (
         <div 
-          className="fixed z-[100] px-3 py-2 text-sm font-medium rounded-md shadow-lg pointer-events-none animate-in fade-in zoom-in-95 duration-200"
+          className="fixed z-[100] px-3 py-2 text-sm font-medium rounded-md shadow-lg pointer-events-none animate-in fade-in zoom-in-95 duration-200 whitespace-nowrap"
           style={{ 
             top: hoveredTooltip.top, 
             left: hoveredTooltip.left,

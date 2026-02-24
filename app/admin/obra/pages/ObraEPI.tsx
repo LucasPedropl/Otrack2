@@ -42,7 +42,20 @@ const ObraEPI: React.FC = () => {
 
   // Search States for Modals
   const [withdrawalCollaboratorSearch, setWithdrawalCollaboratorSearch] = useState('');
+  const [withdrawalItemSearch, setWithdrawalItemSearch] = useState('');
+  const [showItemOptions, setShowItemOptions] = useState(false);
+  const itemRef = React.useRef<HTMLDivElement>(null);
   const [addCollaboratorSearch, setAddCollaboratorSearch] = useState('');
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (itemRef.current && !itemRef.current.contains(event.target as Node)) {
+        setShowItemOptions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     fetchData();
@@ -106,14 +119,17 @@ const ObraEPI: React.FC = () => {
   const handleOpenWithdrawal = (item?: SiteInventoryItem) => {
     if (item) {
       setSelectedItemId(item.id!);
+      setWithdrawalItemSearch(item.name);
     } else {
       setSelectedItemId('');
+      setWithdrawalItemSearch('');
     }
     setSelectedCollaboratorId('');
     setWithdrawalCollaboratorSearch('');
     setQuantity(1);
     setNotes('');
     setShowWithdrawalModal(true);
+    setShowItemOptions(false);
   };
 
   const handleSubmitWithdrawal = async (e: React.FormEvent) => {
@@ -434,7 +450,7 @@ const ObraEPI: React.FC = () => {
                      <Button variant="secondary" className="h-8 text-xs" onClick={() => handleViewHistory(collab.name)}>
                        <History size={14} className="mr-1" /> Histórico
                      </Button>
-                     <Button variant="destructive" className="h-8 text-xs" onClick={() => handleRemoveCollaborator(collab.id!)}>
+                     <Button variant="danger" className="h-8 text-xs" onClick={() => handleRemoveCollaborator(collab.id!)}>
                        <Trash2 size={14} />
                      </Button>
                    </td>
@@ -534,22 +550,52 @@ const ObraEPI: React.FC = () => {
                 {siteCollaborators.length === 0 && <p className="text-xs text-red-500 mt-1">Nenhum colaborador cadastrado na obra.</p>}
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: currentTheme.colors.textSecondary }}>Item (EPI)</label>
-                <select
-                  required
-                  value={selectedItemId}
-                  onChange={(e) => setSelectedItemId(e.target.value)}
-                  className={baseInputClass}
-                  style={dynamicInputStyle}
-                >
-                  <option value="">Selecione...</option>
-                  {epiItems.map(item => (
-                    <option key={item.id} value={item.id}>
-                      {item.name} (Disp: {item.quantity} {item.unit})
-                    </option>
-                  ))}
-                </select>
+              <div className="relative" ref={itemRef}>
+                <label className="block text-sm font-medium mb-1" style={{ color: currentTheme.colors.textSecondary }}>Item (EPI) *</label>
+                <div className="relative">
+                    <input 
+                        required
+                        value={withdrawalItemSearch}
+                        onChange={(e) => {
+                            setWithdrawalItemSearch(e.target.value);
+                            setShowItemOptions(true);
+                            if (!e.target.value) setSelectedItemId('');
+                        }}
+                        onFocus={() => setShowItemOptions(true)}
+                        placeholder="Buscar EPI..."
+                        className={baseInputClass}
+                        style={dynamicInputStyle}
+                    />
+                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 opacity-40" style={{ color: currentTheme.colors.text }} />
+                </div>
+                
+                {showItemOptions && (
+                    <ul className="absolute z-50 w-full mt-1 max-h-48 overflow-auto rounded-lg border shadow-xl" style={{ backgroundColor: currentTheme.colors.card, borderColor: currentTheme.colors.border }}>
+                        {epiItems
+                            .filter(item => item.name.toLowerCase().includes(withdrawalItemSearch.toLowerCase()))
+                            .map(item => (
+                                <li 
+                                    key={item.id}
+                                    onMouseDown={() => {
+                                        setSelectedItemId(item.id!);
+                                        setWithdrawalItemSearch(item.name);
+                                        setShowItemOptions(false);
+                                    }}
+                                    className="px-4 py-3 cursor-pointer hover:bg-white/5 transition-colors border-b last:border-0"
+                                    style={{ borderColor: currentTheme.colors.border }}
+                                >
+                                    <div className="font-medium" style={{ color: currentTheme.colors.text }}>{item.name}</div>
+                                    <div className="text-xs opacity-60" style={{ color: currentTheme.colors.textSecondary }}>Disponível: {item.quantity} {item.unit}</div>
+                                </li>
+                            ))
+                        }
+                        {epiItems.filter(item => item.name.toLowerCase().includes(withdrawalItemSearch.toLowerCase())).length === 0 && (
+                            <li className="p-4 text-center text-sm opacity-50" style={{ color: currentTheme.colors.text }}>
+                                Nenhum EPI encontrado.
+                            </li>
+                        )}
+                    </ul>
+                )}
               </div>
 
               <div>
@@ -616,7 +662,7 @@ const ObraEPI: React.FC = () => {
                                     <p className="font-bold text-sm" style={{ color: currentTheme.colors.text }}>{c.nome}</p>
                                     <p className="text-xs opacity-60" style={{ color: currentTheme.colors.textSecondary }}>{c.empresa}</p>
                                 </div>
-                                <Button size="sm" onClick={() => handleAddCollaborator(c.id!)} disabled={submitting}>
+                                <Button onClick={() => handleAddCollaborator(c.id!)} disabled={submitting}>
                                     Adicionar
                                 </Button>
                             </div>

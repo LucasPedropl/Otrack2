@@ -60,6 +60,10 @@ const ObraInventory: React.FC = () => {
 
   // Form State (Create/Edit Item)
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [showItemOptions, setShowItemOptions] = useState(false);
+  const [itemSearch, setItemSearch] = useState('');
+  const itemRef = React.useRef<HTMLDivElement>(null);
+
   const [formData, setFormData] = useState({
     originalItemId: '',
     quantity: 0,
@@ -313,11 +317,23 @@ const ObraInventory: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (itemRef.current && !itemRef.current.contains(event.target as Node)) {
+        setShowItemOptions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setEditingId(null);
     setFormData({ originalItemId: '', quantity: 0, minThreshold: 0, averagePrice: 0 });
     setSelectedGlobalItem(null);
+    setItemSearch('');
+    setShowItemOptions(false);
   };
 
   const handleExport = () => {
@@ -402,7 +418,7 @@ const ObraInventory: React.FC = () => {
       </div>
 
       {/* Table Content */}
-      <div className="pb-20">
+      <div className="mb-8">
         <div className="overflow-x-auto rounded-xl border" style={{ borderColor: currentTheme.colors.border, backgroundColor: currentTheme.colors.card }}>
           <table className="w-full text-left text-sm border-collapse min-w-[900px]">
             <thead>
@@ -524,7 +540,7 @@ const ObraInventory: React.FC = () => {
         </div>
       </div>
 
-      {/* Fixed Bottom Bar */}
+      {/* Static Bottom Bar */}
       <BottomActionsBar 
         totalItems={filteredData.length}
         currentPage={currentPage}
@@ -685,20 +701,61 @@ const ObraInventory: React.FC = () => {
                 
                 {/* Global Item Selection - Only if adding new */}
                 {!editingId && (
-                    <div>
+                    <div className="relative" ref={itemRef}>
                         <label className="block text-sm mb-1" style={labelStyle}>Selecione o Insumo *</label>
-                        <select
-                            value={formData.originalItemId}
-                            onChange={handleGlobalItemSelect}
-                            className={baseInputClass}
-                            style={dynamicInputStyle}
-                            required
-                        >
-                            <option value="">-- Selecione --</option>
-                            {globalItems.map(g => (
-                                <option key={g.id} value={g.id}>{g.name} ({g.unit})</option>
-                            ))}
-                        </select>
+                        <div className="relative">
+                            <input 
+                                required
+                                value={itemSearch}
+                                onChange={e => {
+                                    setItemSearch(e.target.value);
+                                    setShowItemOptions(true);
+                                    // If clearing search, clear selection
+                                    if (!e.target.value) {
+                                        setSelectedGlobalItem(null);
+                                        setFormData(prev => ({ ...prev, originalItemId: '' }));
+                                    }
+                                }}
+                                onFocus={() => setShowItemOptions(true)}
+                                placeholder="Digite para buscar insumo..."
+                                className={baseInputClass}
+                                style={dynamicInputStyle}
+                            />
+                            <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 opacity-40" style={{ color: currentTheme.colors.text }} />
+                        </div>
+                        
+                        {showItemOptions && (
+                            <ul className="absolute z-50 w-full mt-1 max-h-60 overflow-auto rounded-lg border shadow-xl" style={{ backgroundColor: currentTheme.colors.card, borderColor: currentTheme.colors.border }}>
+                                {globalItems
+                                    .filter(g => g.name.toLowerCase().includes(itemSearch.toLowerCase()) || g.category.toLowerCase().includes(itemSearch.toLowerCase()))
+                                    .map(g => (
+                                        <li 
+                                            key={g.id}
+                                            onMouseDown={() => {
+                                                setSelectedGlobalItem(g);
+                                                setFormData(prev => ({ 
+                                                    ...prev, 
+                                                    originalItemId: g.id!,
+                                                    averagePrice: g.unitValue || 0 
+                                                }));
+                                                setItemSearch(g.name);
+                                                setShowItemOptions(false);
+                                            }}
+                                            className="px-4 py-3 cursor-pointer hover:bg-white/5 transition-colors border-b last:border-0"
+                                            style={{ borderColor: currentTheme.colors.border }}
+                                        >
+                                            <div className="font-medium" style={{ color: currentTheme.colors.text }}>{g.name}</div>
+                                            <div className="text-xs opacity-60" style={{ color: currentTheme.colors.textSecondary }}>{g.category} • {g.unit}</div>
+                                        </li>
+                                    ))
+                                }
+                                {globalItems.filter(g => g.name.toLowerCase().includes(itemSearch.toLowerCase())).length === 0 && (
+                                    <li className="px-4 py-8 text-center text-sm opacity-50" style={{ color: currentTheme.colors.text }}>
+                                        Nenhum insumo encontrado.
+                                    </li>
+                                )}
+                            </ul>
+                        )}
                     </div>
                 )}
 
