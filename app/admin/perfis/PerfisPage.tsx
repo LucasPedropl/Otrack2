@@ -19,6 +19,7 @@ interface SystemModule {
   id: string;
   label: string;
   actions: ModuleAction[];
+  category?: string;
 }
 
 interface ModuleGroup {
@@ -36,31 +37,33 @@ const COMMON_ACTIONS: ModuleAction[] = [
 
 const MODULE_GROUPS: ModuleGroup[] = [
   {
-    id: 'navigation',
-    title: 'Navegação Principal',
-    icon: LayoutGrid,
+    id: 'obras_gestao',
+    title: 'Gestão de Obras',
+    icon: Building2,
     modules: [
-      { id: 'dashboard', label: 'Dashboard Principal', actions: [{ id: 'view', label: 'Visualizar Dashboard' }] },
-      { id: 'obras', label: 'Gestão de Obras', actions: COMMON_ACTIONS },
+      { id: 'obras', label: 'Acesso Geral à Obra', actions: COMMON_ACTIONS },
+      { id: 'obra_overview', label: 'Visão Geral', actions: [{ id: 'view', label: 'Visualizar' }] },
+      { id: 'obra_inventory', label: 'Almoxarifado', actions: COMMON_ACTIONS },
+      { id: 'obra_tools', label: 'Ferramentas', actions: COMMON_ACTIONS },
+      { id: 'obra_epi', label: 'EPIs', actions: COMMON_ACTIONS },
+      { id: 'obra_rented', label: 'Equip. Alugados', actions: COMMON_ACTIONS },
+      { id: 'obra_movements', label: 'Movimentações', actions: [{ id: 'view', label: 'Visualizar' }] },
     ]
   },
   {
-    id: 'budget',
-    title: 'Cadastros de Orçamento',
-    icon: Archive,
-    modules: [
-      { id: 'orcamento_insumos', label: 'Insumos', actions: COMMON_ACTIONS },
-      { id: 'orcamento_unidades', label: 'Unidades de Medida', actions: COMMON_ACTIONS },
-      { id: 'orcamento_categorias', label: 'Categorias', actions: COMMON_ACTIONS },
-    ]
-  },
-  {
-    id: 'admin',
-    title: 'Administração',
+    id: 'data_config',
+    title: 'Configurações de Dados',
     icon: SettingsIcon,
     modules: [
-      { id: 'acesso_usuarios', label: 'Usuários do Sistema', actions: COMMON_ACTIONS },
-      { id: 'acesso_perfis', label: 'Perfis de Acesso', actions: COMMON_ACTIONS },
+      // Orçamento
+      { id: 'orcamento_insumos', label: 'Insumos', actions: COMMON_ACTIONS, category: 'Orçamento' },
+      { id: 'orcamento_unidades', label: 'Unidades de Medida', actions: COMMON_ACTIONS, category: 'Orçamento' },
+      { id: 'orcamento_categorias', label: 'Categorias', actions: COMMON_ACTIONS, category: 'Orçamento' },
+      // Mão de Obra
+      { id: 'mao_obra_colaboradores', label: 'Colaboradores', actions: COMMON_ACTIONS, category: 'Mão de Obra' },
+      // Acesso
+      { id: 'acesso_usuarios', label: 'Usuários', actions: COMMON_ACTIONS, category: 'Acesso ao Sistema' },
+      { id: 'acesso_perfis', label: 'Perfis de Acesso', actions: COMMON_ACTIONS, category: 'Acesso ao Sistema' },
     ]
   }
 ];
@@ -178,6 +181,38 @@ const PerfisPage: React.FC = () => {
 
   const handleDeselectAllGlobal = () => setPermissions(new Set());
 
+  const handleToggleGroup = (group: ModuleGroup, value: boolean) => {
+      const newPerms = new Set(permissions);
+      group.modules.forEach(mod => {
+          mod.actions.forEach(act => {
+              const permString = `${mod.id}:${act.id}`;
+              if (value) newPerms.add(permString);
+              else newPerms.delete(permString);
+          });
+      });
+      setPermissions(newPerms);
+  };
+
+  const handleToggleCategory = (modules: SystemModule[], value: boolean) => {
+      const newPerms = new Set(permissions);
+      modules.forEach(mod => {
+          mod.actions.forEach(act => {
+              const permString = `${mod.id}:${act.id}`;
+              if (value) newPerms.add(permString);
+              else newPerms.delete(permString);
+          });
+      });
+      setPermissions(newPerms);
+  };
+
+  const isGroupFullySelected = (group: ModuleGroup) => {
+      return group.modules.every(mod => isFullAccess(mod.id, mod.actions));
+  };
+
+  const isCategoryFullySelected = (modules: SystemModule[]) => {
+      return modules.every(mod => isFullAccess(mod.id, mod.actions));
+  };
+
   const handleEdit = (profile: AccessProfile) => {
     setName(profile.name);
     setPermissions(new Set(profile.permissions));
@@ -294,6 +329,48 @@ const PerfisPage: React.FC = () => {
   const baseInputClass = "w-full px-3 py-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 transition-colors";
   const labelStyle = { color: currentTheme.colors.text };
 
+
+  const renderModule = (module: SystemModule) => {
+      const isExpanded = expandedModules.has(module.id);
+      const hasAccess = hasModuleAccess(module.id);
+      const isFull = isFullAccess(module.id, module.actions);
+
+      return (
+          <div key={module.id} className="border rounded-lg overflow-hidden transition-all mb-3" style={{ borderColor: hasAccess ? currentTheme.colors.primary : currentTheme.colors.border, backgroundColor: hasAccess ? `${currentTheme.colors.primary}05` : 'transparent' }}>
+              <div className="flex items-center justify-between p-3 bg-opacity-50 hover:bg-opacity-100 transition-colors" style={{ backgroundColor: currentTheme.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)' }}>
+                  <div className="flex items-center gap-3 flex-1 cursor-pointer select-none" onClick={() => toggleModuleExpand(module.id)}>{isExpanded ? <ChevronDown size={18} style={{ color: currentTheme.colors.textSecondary }} /> : <ChevronRight size={18} style={{ color: currentTheme.colors.textSecondary }} />}<span className="font-semibold" style={{ color: currentTheme.colors.text }}>{module.label}</span></div>
+                  <div className="flex items-center gap-6 mr-2">
+                      <label className="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" checked={hasAccess} onChange={(e) => togglePermission(module.id, 'view', e.target.checked)} className="rounded border-gray-300 text-brand-600 focus:ring-brand-500 h-4 w-4" /><span className="text-sm" style={{ color: currentTheme.colors.text }}>Acesso ao módulo</span></label>
+                      <label className="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" checked={isFull} disabled={!hasAccess} onChange={(e) => toggleModuleFullAccess(module.id, module.actions, e.target.checked)} className="rounded border-gray-300 text-brand-600 focus:ring-brand-500 h-4 w-4 disabled:opacity-50" /><span className={`text-sm ${!hasAccess ? 'opacity-50' : ''}`} style={{ color: currentTheme.colors.text }}>Acesso completo</span></label>
+                  </div>
+              </div>
+
+              {isExpanded && (
+                  <div className="p-4 pl-10 border-t bg-opacity-30 bg-black/5" style={{ borderColor: currentTheme.colors.border }}>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">{module.actions.map(action => (<label key={action.id} className="flex items-center gap-2 cursor-pointer select-none hover:opacity-80"><input type="checkbox" checked={checkFormPermission(module.id, action.id)} disabled={!hasAccess} onChange={(e) => togglePermission(module.id, action.id, e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500 disabled:opacity-50" /><span className={`text-sm ${!hasAccess ? 'opacity-50' : ''}`} style={{ color: currentTheme.colors.textSecondary }}>{action.label}</span></label>))}</div>
+
+                      {module.id === 'obras' && hasAccess && (
+                          <div className="mt-6 pt-4 border-t" style={{ borderColor: currentTheme.colors.border }}>
+                              <h4 className="text-sm font-bold mb-3" style={{ color: currentTheme.colors.text }}>Restrição de Obras</h4>
+                              <div className="space-y-4">
+                                  <div className="flex gap-6">
+                                      <label className="flex items-center gap-2 cursor-pointer"><input type="radio" checked={accessAllSites} onChange={() => setAccessAllSites(true)} className="text-brand-600 focus:ring-brand-500" /><span className="text-sm" style={{ color: currentTheme.colors.text }}>Ter acesso a todas as obras</span></label>
+                                      <label className="flex items-center gap-2 cursor-pointer"><input type="radio" checked={!accessAllSites} onChange={() => setAccessAllSites(false)} className="text-brand-600 focus:ring-brand-500" /><span className="text-sm" style={{ color: currentTheme.colors.text }}>Selecionar obras específicas</span></label>
+                                  </div>
+                                  {!accessAllSites && (
+                                      <div className="max-h-40 overflow-y-auto border rounded-lg p-3 space-y-2 bg-white/5" style={{ borderColor: currentTheme.colors.border }}>
+                                          {availableSites.map(site => (<label key={site.id} className="flex items-center gap-2 cursor-pointer hover:bg-white/5 p-1 rounded"><input type="checkbox" checked={allowedSites.has(site.id!)} onChange={(e) => { const next = new Set(allowedSites); if(e.target.checked) next.add(site.id!); else next.delete(site.id!); setAllowedSites(next); }} className="rounded border-gray-300 text-brand-600 focus:ring-brand-500" /><Building2 size={14} className="opacity-50" /><span className="text-sm" style={{ color: currentTheme.colors.text }}>{site.name}</span></label>))}
+                                      </div>
+                                  )}
+                              </div>
+                          </div>
+                      )}
+                  </div>
+              )}
+          </div>
+      );
+  };
+
   return (
     <>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
@@ -374,53 +451,71 @@ const PerfisPage: React.FC = () => {
                     <div className="flex justify-between items-center mb-6 border-b pb-2" style={{ borderColor: currentTheme.colors.border }}><h3 className="font-bold text-lg" style={{ color: currentTheme.colors.text }}>Permissões do Sistema</h3><div className="space-x-4 text-sm"><button onClick={handleSelectAllGlobal} className="text-blue-500 hover:underline">Marcar todos</button><span style={{ color: currentTheme.colors.border }}>|</span><button onClick={handleDeselectAllGlobal} className="text-red-500 hover:underline">Desmarcar todos</button></div></div>
 
                     <div className="space-y-8">
-                        {MODULE_GROUPS.map((group) => (
-                            <div key={group.id}>
-                                <div className="flex items-center gap-2 mb-3 text-sm font-bold uppercase tracking-wider opacity-70" style={{ color: currentTheme.colors.primary }}><group.icon size={16} />{group.title}</div>
-                                <div className="space-y-3">
-                                    {group.modules.map((module) => {
-                                        const isExpanded = expandedModules.has(module.id);
-                                        const hasAccess = hasModuleAccess(module.id);
-                                        const isFull = isFullAccess(module.id, module.actions);
+                        {MODULE_GROUPS.map((group) => {
+                            // Group modules by category if they have one
+                            const modulesByCategory: Record<string, SystemModule[]> = {};
+                            const uncategorizedModules: SystemModule[] = [];
 
-                                        return (
-                                            <div key={module.id} className="border rounded-lg overflow-hidden transition-all" style={{ borderColor: hasAccess ? currentTheme.colors.primary : currentTheme.colors.border, backgroundColor: hasAccess ? `${currentTheme.colors.primary}05` : 'transparent' }}>
-                                                <div className="flex items-center justify-between p-3 bg-opacity-50 hover:bg-opacity-100 transition-colors" style={{ backgroundColor: currentTheme.isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)' }}>
-                                                    <div className="flex items-center gap-3 flex-1 cursor-pointer select-none" onClick={() => toggleModuleExpand(module.id)}>{isExpanded ? <ChevronDown size={18} style={{ color: currentTheme.colors.textSecondary }} /> : <ChevronRight size={18} style={{ color: currentTheme.colors.textSecondary }} />}<span className="font-semibold" style={{ color: currentTheme.colors.text }}>{module.label}</span></div>
-                                                    <div className="flex items-center gap-6 mr-2">
-                                                        <label className="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" checked={hasAccess} onChange={(e) => togglePermission(module.id, 'view', e.target.checked)} className="rounded border-gray-300 text-brand-600 focus:ring-brand-500 h-4 w-4" /><span className="text-sm" style={{ color: currentTheme.colors.text }}>Acesso ao módulo</span></label>
-                                                        <label className="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" checked={isFull} disabled={!hasAccess} onChange={(e) => toggleModuleFullAccess(module.id, module.actions, e.target.checked)} className="rounded border-gray-300 text-brand-600 focus:ring-brand-500 h-4 w-4 disabled:opacity-50" /><span className={`text-sm ${!hasAccess ? 'opacity-50' : ''}`} style={{ color: currentTheme.colors.text }}>Acesso completo</span></label>
-                                                    </div>
-                                                </div>
+                            group.modules.forEach(mod => {
+                                if (mod.category) {
+                                    if (!modulesByCategory[mod.category]) modulesByCategory[mod.category] = [];
+                                    modulesByCategory[mod.category].push(mod);
+                                } else {
+                                    uncategorizedModules.push(mod);
+                                }
+                            });
 
-                                                {isExpanded && (
-                                                    <div className="p-4 pl-10 border-t bg-opacity-30 bg-black/5" style={{ borderColor: currentTheme.colors.border }}>
-                                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">{module.actions.map(action => (<label key={action.id} className="flex items-center gap-2 cursor-pointer select-none hover:opacity-80"><input type="checkbox" checked={checkFormPermission(module.id, action.id)} disabled={!hasAccess} onChange={(e) => togglePermission(module.id, action.id, e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500 disabled:opacity-50" /><span className={`text-sm ${!hasAccess ? 'opacity-50' : ''}`} style={{ color: currentTheme.colors.textSecondary }}>{action.label}</span></label>))}</div>
+                            const categories = Object.keys(modulesByCategory);
 
-                                                        {module.id === 'obras' && hasAccess && (
-                                                            <div className="mt-6 pt-4 border-t" style={{ borderColor: currentTheme.colors.border }}>
-                                                                <h4 className="text-sm font-bold mb-3" style={{ color: currentTheme.colors.text }}>Restrição de Obras</h4>
-                                                                <div className="space-y-4">
-                                                                    <div className="flex gap-6">
-                                                                        <label className="flex items-center gap-2 cursor-pointer"><input type="radio" checked={accessAllSites} onChange={() => setAccessAllSites(true)} className="text-brand-600 focus:ring-brand-500" /><span className="text-sm" style={{ color: currentTheme.colors.text }}>Ter acesso a todas as obras</span></label>
-                                                                        <label className="flex items-center gap-2 cursor-pointer"><input type="radio" checked={!accessAllSites} onChange={() => setAccessAllSites(false)} className="text-brand-600 focus:ring-brand-500" /><span className="text-sm" style={{ color: currentTheme.colors.text }}>Selecionar obras específicas</span></label>
-                                                                    </div>
-                                                                    {!accessAllSites && (
-                                                                        <div className="max-h-40 overflow-y-auto border rounded-lg p-3 space-y-2 bg-white/5" style={{ borderColor: currentTheme.colors.border }}>
-                                                                            {availableSites.map(site => (<label key={site.id} className="flex items-center gap-2 cursor-pointer hover:bg-white/5 p-1 rounded"><input type="checkbox" checked={allowedSites.has(site.id!)} onChange={(e) => { const next = new Set(allowedSites); if(e.target.checked) next.add(site.id!); else next.delete(site.id!); setAllowedSites(next); }} className="rounded border-gray-300 text-brand-600 focus:ring-brand-500" /><Building2 size={14} className="opacity-50" /><span className="text-sm" style={{ color: currentTheme.colors.text }}>{site.name}</span></label>))}
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                )}
+                            return (
+                                <div key={group.id}>
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider opacity-70" style={{ color: currentTheme.colors.primary }}>
+                                            <group.icon size={16} />{group.title}
+                                        </div>
+                                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={isGroupFullySelected(group)} 
+                                                onChange={(e) => handleToggleGroup(group, e.target.checked)} 
+                                                className="rounded border-gray-300 text-brand-600 focus:ring-brand-500 h-4 w-4" 
+                                            />
+                                            <span className="text-xs font-semibold" style={{ color: currentTheme.colors.textSecondary }}>Habilitar Grupo</span>
+                                        </label>
+                                    </div>
+                                    
+                                    <div className="space-y-6">
+                                        {/* Uncategorized Modules */}
+                                        {uncategorizedModules.length > 0 && (
+                                            <div className="space-y-3">
+                                                {uncategorizedModules.map(module => renderModule(module))}
                                             </div>
-                                        );
-                                    })}
+                                        )}
+
+                                        {/* Categorized Modules */}
+                                        {categories.map(category => (
+                                            <div key={category} className="pl-4 border-l-2" style={{ borderColor: currentTheme.colors.border }}>
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <h4 className="text-sm font-semibold" style={{ color: currentTheme.colors.text }}>{category}</h4>
+                                                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            checked={isCategoryFullySelected(modulesByCategory[category])} 
+                                                            onChange={(e) => handleToggleCategory(modulesByCategory[category], e.target.checked)} 
+                                                            className="rounded border-gray-300 text-brand-600 focus:ring-brand-500 h-4 w-4" 
+                                                        />
+                                                        <span className="text-xs" style={{ color: currentTheme.colors.textSecondary }}>Habilitar Seção</span>
+                                                    </label>
+                                                </div>
+                                                <div className="space-y-3">
+                                                    {modulesByCategory[category].map(module => renderModule(module))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
              </div>

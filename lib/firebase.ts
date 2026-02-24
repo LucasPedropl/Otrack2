@@ -4,7 +4,7 @@ import { getAuth } from "firebase/auth";
 import { getAnalytics } from "firebase/analytics";
 import { getStorage } from "firebase/storage";
 
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: "AIzaSyADMq2uQp7nLwGWCw807zOYq-8e3xFnUSE",
   authDomain: "estoque-4a453.firebaseapp.com",
   projectId: "estoque-4a453",

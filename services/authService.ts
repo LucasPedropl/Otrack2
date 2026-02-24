@@ -90,6 +90,8 @@ export const authService = {
   loginWithEmail: async (email: string, password: string, rememberMe: boolean = true): Promise<User> => {
     try {
       // 1. Prioridade: Login Gerenciado via Firestore
+      // DESATIVADO: Incompatível com regras de segurança. Usuários devem ser criados no Firebase Auth.
+      /*
       const usersRef = collection(db, 'users');
       const q = query(usersRef, where("email", "==", email), where("password", "==", password));
       const querySnapshot = await getDocs(q);
@@ -117,6 +119,7 @@ export const authService = {
 
         return user;
       }
+      */
 
       // 2. Fallback: Firebase Auth padrão
       await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);

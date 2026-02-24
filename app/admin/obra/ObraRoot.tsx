@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { constructionService } from '../../../services/constructionService';
+import { usePermissions } from '../../../contexts/PermissionsContext';
 import { ConstructionSite } from '../../../types';
 import { 
   LayoutDashboard, Package, ArrowLeftRight, 
@@ -14,6 +15,7 @@ const ObraRoot: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { currentTheme } = useTheme();
+  const { hasPermission } = usePermissions();
   const [site, setSite] = useState<ConstructionSite | null>(null);
   const [loading, setLoading] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -53,6 +55,29 @@ const ObraRoot: React.FC = () => {
     setIsMobileMenuOpen(false);
   }, [location.pathname]);
 
+  const navItems = useMemo(() => {
+    const items = [
+      { path: 'overview', label: 'Visão Geral', icon: LayoutDashboard, permission: 'obra_overview' },
+      { path: 'inventory', label: 'Almoxarifado', icon: Package, permission: 'obra_inventory' },
+      { path: 'tools', label: 'Ferramentas', icon: Hammer, permission: 'obra_tools' },
+      { path: 'epi', label: 'EPIs', icon: HardHat, permission: 'obra_epi' },
+      { path: 'rented', label: 'Equip. Alugados', icon: Truck, permission: 'obra_rented' },
+      { path: 'movements', label: 'Movimentações', icon: ArrowLeftRight, permission: 'obra_movements' },
+    ];
+
+    return items.filter(item => hasPermission(item.permission, 'view') || hasPermission('obras', 'view')); // Fallback to 'obras:view' for backward compatibility or general access
+  }, [hasPermission]);
+
+  const quickActions = useMemo(() => {
+    const actions = [
+      { label: 'Retirada EPI', icon: HardHat, action: () => navigate(`/admin/obra/${id}/epi`), permission: 'obra_epi' },
+      { label: 'Empréstimo', icon: Hammer, action: () => navigate(`/admin/obra/${id}/tools`), permission: 'obra_tools' },
+      { label: 'Novo Insumo', icon: Package, action: () => navigate(`/admin/obra/${id}/inventory`), permission: 'obra_inventory' },
+      { label: 'Novo Equipamento', icon: Truck, action: () => navigate(`/admin/obra/${id}/rented`), permission: 'obra_rented' },
+    ];
+    return actions.filter(action => hasPermission(action.permission, 'create') || hasPermission('obras', 'create'));
+  }, [id, navigate, hasPermission]);
+
   if (loading) {
     return (
       <div className="h-full w-full flex items-center justify-center">
@@ -62,22 +87,6 @@ const ObraRoot: React.FC = () => {
   }
 
   if (!site) return null;
-
-  const navItems = [
-    { path: 'overview', label: 'Visão Geral', icon: LayoutDashboard },
-    { path: 'inventory', label: 'Almoxarifado', icon: Package },
-    { path: 'tools', label: 'Ferramentas', icon: Hammer },
-    { path: 'epi', label: 'EPIs', icon: HardHat },
-    { path: 'rented', label: 'Equip. Alugados', icon: Truck },
-    { path: 'movements', label: 'Movimentações', icon: ArrowLeftRight },
-  ];
-
-  const quickActions = [
-    { label: 'Retirada EPI', icon: HardHat, action: () => navigate(`/admin/obra/${id}/epi`) },
-    { label: 'Empréstimo', icon: Hammer, action: () => navigate(`/admin/obra/${id}/tools`) },
-    { label: 'Novo Insumo', icon: Package, action: () => navigate(`/admin/obra/${id}/inventory`) },
-    { label: 'Novo Equipamento', icon: Truck, action: () => navigate(`/admin/obra/${id}/rented`) },
-  ];
 
   const getSidebarItemStyle = (isActive: boolean) => ({
     backgroundColor: isActive ? 
@@ -137,17 +146,22 @@ const ObraRoot: React.FC = () => {
         {/* Toggle Button */}
         <button 
             onClick={toggleSidebar}
-            className="absolute flex items-center justify-center h-6 w-6 rounded-lg border border-solid shadow-sm z-50 transition-colors hover:bg-white/10"
+            className="absolute flex items-center justify-center z-50 transition-colors hover:bg-white/10"
             style={{ 
                 left: 0,
-                top: '50%',
-                transform: 'translate(-50%, -50%)',
+                top: '80px',
+                transform: 'translateX(-100%)',
                 backgroundColor: currentTheme.colors.sidebar, 
-                borderColor: `${currentTheme.colors.sidebarText}1F`,
-                color: currentTheme.colors.sidebarText
+                color: currentTheme.colors.sidebarText,
+                width: '24px',
+                height: '48px',
+                borderRadius: '8px 0 0 8px',
+                border: `1px solid ${currentTheme.colors.border}`,
+                borderRight: 'none',
+                boxShadow: '-2px 0 5px rgba(0,0,0,0.1)'
             }}
         >
-            {isSidebarCollapsed ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
+            {isSidebarCollapsed ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
         </button>
 
          <nav className="p-4 pt-8 space-y-1 overflow-y-auto overflow-x-hidden no-scrollbar">
@@ -175,32 +189,17 @@ const ObraRoot: React.FC = () => {
             borderColor: currentTheme.colors.border
         }}
       >
-          <NavLink 
-            to={`/admin/obra/${id}/overview`}
-            className={({ isActive }) => `p-3 rounded-xl flex flex-col items-center gap-1 ${isActive ? 'opacity-100' : 'opacity-50'}`}
-            style={({ isActive }) => ({ color: isActive ? currentTheme.colors.primary : currentTheme.colors.text })}
-          >
-             <LayoutDashboard size={24} />
-             <span className="text-[10px]">Visão</span>
-          </NavLink>
-          
-          <NavLink 
-            to={`/admin/obra/${id}/inventory`}
-            className={({ isActive }) => `p-3 rounded-xl flex flex-col items-center gap-1 ${isActive ? 'opacity-100' : 'opacity-50'}`}
-            style={({ isActive }) => ({ color: isActive ? currentTheme.colors.primary : currentTheme.colors.text })}
-          >
-             <Package size={24} />
-             <span className="text-[10px]">Estoque</span>
-          </NavLink>
-
-          <NavLink 
-            to={`/admin/obra/${id}/tools`}
-            className={({ isActive }) => `p-3 rounded-xl flex flex-col items-center gap-1 ${isActive ? 'opacity-100' : 'opacity-50'}`}
-            style={({ isActive }) => ({ color: isActive ? currentTheme.colors.primary : currentTheme.colors.text })}
-          >
-             <Hammer size={24} />
-             <span className="text-[10px]">Ferr.</span>
-          </NavLink>
+          {navItems.slice(0, 3).map(item => (
+            <NavLink 
+                key={item.path}
+                to={`/admin/obra/${id}/${item.path}`}
+                className={({ isActive }) => `p-3 rounded-xl flex flex-col items-center gap-1 ${isActive ? 'opacity-100' : 'opacity-50'}`}
+                style={({ isActive }) => ({ color: isActive ? currentTheme.colors.primary : currentTheme.colors.text })}
+            >
+                <item.icon size={24} />
+                <span className="text-[10px]">{item.label.substring(0, 8)}</span>
+            </NavLink>
+          ))}
 
           <button 
             onClick={() => setIsMobileMenuOpen(true)}
@@ -241,28 +240,30 @@ const ObraRoot: React.FC = () => {
 
                 <div className="flex-1 overflow-y-auto space-y-8 pb-20 no-scrollbar">
                     {/* Quick Actions Grid */}
-                    <section>
-                        <h3 className="text-sm font-bold opacity-50 mb-4 uppercase" style={{ color: currentTheme.colors.textSecondary }}>Ações Rápidas</h3>
-                        <div className="grid grid-cols-2 gap-4">
-                            {quickActions.map((qa, idx) => (
-                                <button 
-                                    key={idx} 
-                                    onClick={() => { qa.action(); setIsMobileMenuOpen(false); }}
-                                    className="p-4 rounded-2xl border flex flex-col items-center gap-3 transition-colors active:scale-95"
-                                    style={{ 
-                                        backgroundColor: currentTheme.colors.card,
-                                        borderColor: currentTheme.colors.border,
-                                        color: currentTheme.colors.text
-                                    }}
-                                >
-                                    <div className="p-3 rounded-full bg-opacity-10" style={{ backgroundColor: currentTheme.colors.primary + '20', color: currentTheme.colors.primary }}>
-                                        <qa.icon size={24} />
-                                    </div>
-                                    <span className="text-sm font-medium text-center">{qa.label}</span>
-                                </button>
-                            ))}
-                        </div>
-                    </section>
+                    {quickActions.length > 0 && (
+                        <section>
+                            <h3 className="text-sm font-bold opacity-50 mb-4 uppercase" style={{ color: currentTheme.colors.textSecondary }}>Ações Rápidas</h3>
+                            <div className="grid grid-cols-2 gap-4">
+                                {quickActions.map((qa, idx) => (
+                                    <button 
+                                        key={idx} 
+                                        onClick={() => { qa.action(); setIsMobileMenuOpen(false); }}
+                                        className="p-4 rounded-2xl border flex flex-col items-center gap-3 transition-colors active:scale-95"
+                                        style={{ 
+                                            backgroundColor: currentTheme.colors.card,
+                                            borderColor: currentTheme.colors.border,
+                                            color: currentTheme.colors.text
+                                        }}
+                                    >
+                                        <div className="p-3 rounded-full bg-opacity-10" style={{ backgroundColor: currentTheme.colors.primary + '20', color: currentTheme.colors.primary }}>
+                                            <qa.icon size={24} />
+                                        </div>
+                                        <span className="text-sm font-medium text-center">{qa.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </section>
+                    )}
 
                     {/* All Navigation Links */}
                     <section>
