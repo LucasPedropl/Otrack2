@@ -9,6 +9,7 @@ import {
 	setPersistence,
 	browserLocalPersistence,
 	browserSessionPersistence,
+	createUserWithEmailAndPassword
 } from 'firebase/auth';
 import {
 	doc,
@@ -19,6 +20,7 @@ import {
 	query,
 	where,
 	getDocs,
+	deleteDoc
 } from 'firebase/firestore';
 import { User } from '../types';
 
@@ -101,40 +103,7 @@ export const authService = {
 		rememberMe: boolean = true,
 	): Promise<User> => {
 		try {
-			// 1. Prioridade: Buscar no Firestore (usuários cadastrados via sistema)
-			const usersRef = collection(db, 'users');
-			const q = query(
-				usersRef,
-				where('email', '==', email),
-				where('password', '==', password),
-			);
-			const querySnapshot = await getDocs(q);
-
-			if (!querySnapshot.empty) {
-				const userDoc = querySnapshot.docs[0];
-				const data = userDoc.data();
-				const user = {
-					id: userDoc.id,
-					name: data.name,
-					email: data.email,
-					password: data.password,
-					role: data.role,
-					profileId: data.profileId,
-					createdAt: data.createdAt?.toDate() || new Date(),
-				} as User;
-
-				// Define persistência baseada na escolha do usuário
-				const storage = rememberMe ? localStorage : sessionStorage;
-				storage.setItem(STORAGE_KEY, JSON.stringify(user));
-
-				// Limpa o outro storage para evitar duplicidade
-				if (rememberMe) sessionStorage.removeItem(STORAGE_KEY);
-				else localStorage.removeItem(STORAGE_KEY);
-
-				return user;
-			}
-
-			// 2. Fallback: Firebase Auth padrão
+			// 1. Tenta login normal via Firebase Auth
 			await setPersistence(
 				auth,
 				rememberMe
@@ -153,6 +122,42 @@ export const authService = {
 
 			return user;
 		} catch (err: any) {
+			// 2. Fallback: Migração de usuário legado (criado apenas no Firestore)
+			if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential' || err.code === 'auth/invalid-login-credentials') {
+				const usersRef = collection(db, 'users');
+				const q = query(
+					usersRef,
+					where('email', '==', email),
+					where('password', '==', password),
+				);
+				const querySnapshot = await getDocs(q);
+
+				if (!querySnapshot.empty) {
+					const oldDoc = querySnapshot.docs[0];
+					const userData = oldDoc.data();
+
+					try {
+						// Cria o usuário no Firebase Auth
+						const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+						const newUid = userCredential.user.uid;
+
+						// Move o documento para o novo UID
+						await setDoc(doc(db, 'users', newUid), userData);
+						await deleteDoc(oldDoc.ref);
+
+						const user = await authService.syncUser(userCredential.user);
+						const storage = rememberMe ? localStorage : sessionStorage;
+						storage.setItem(STORAGE_KEY, JSON.stringify(user));
+
+						return user;
+					} catch (migrationErr: any) {
+						console.error("Erro na migração:", migrationErr);
+						await signOut(auth); // Ensure we don't leave a half-migrated state
+						throw new Error("Erro ao atualizar conta legada. Contate o suporte.");
+					}
+				}
+			}
+
 			console.error('Login error:', err);
 			if (
 				err.message?.includes('permissions') ||
@@ -232,30 +237,13 @@ export const authService = {
 					callback(null);
 				}
 			} else {
-				// Caso não haja usuário Firebase (logout ou login manual)
-				// Verifica se há usuário no storage (Login Manual)
+				// Força logout se não houver sessão no Firebase Auth
+				// Isso garante que usuários legados sejam deslogados e forçados a passar pela migração no login
 				const storedUser = authService.getCurrentUser();
-
 				if (storedUser) {
-					// VERIFICAÇÃO DE SEGURANÇA:
-					// Checa se o usuário ainda existe no banco de dados.
-					// Se foi deletado, força logout.
-					if (storedUser.id) {
-						const exists = await authService.verifyUserExists(
-							storedUser.id,
-						);
-						if (exists) {
-							callback(storedUser);
-						} else {
-							await authService.logout();
-							callback(null);
-						}
-					} else {
-						callback(storedUser);
-					}
-				} else {
-					callback(null);
+					await authService.logout();
 				}
+				callback(null);
 			}
 		});
 	},

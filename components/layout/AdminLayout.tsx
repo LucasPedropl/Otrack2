@@ -84,20 +84,23 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
     mao_obra: true
   });
 
-  const settingsMenus = RAW_SETTINGS_MENUS.map(menu => ({
-    ...menu,
-    items: menu.items.filter(item => hasPermission(item.permission.split(':')[0], 'view'))
-  })).filter(menu => menu.items.length > 0);
+	const settingsMenus = RAW_SETTINGS_MENUS.map((menu) => ({
+		...menu,
+		items: menu.items.filter((item) =>
+			hasPermission(item.permission.split(':')[0], 'view'),
+		),
+	})).filter((menu) => menu.items.length > 0);
 
-  const hasSettingsAccess = settingsMenus.length > 0;
+	const hasSettingsAccess = settingsMenus.length > 0;
 
-  // Filtragem das obras baseada nas permissões
-  const sidebarSites = useMemo(() => {
-     return allSitesList.filter(site => {
-        if (isAdmin || allSites) return true;
-        return allowedSites.includes(site.id!);
-     });
-  }, [allSitesList, isAdmin, allSites, allowedSites]);
+	// Filtragem das obras baseada nas permissões
+	const sidebarSites = useMemo(() => {
+		if (!allSitesList) return [];
+		return allSitesList.filter((site) => {
+			if (isAdmin || allSites) return true;
+			return allowedSites.includes(site.id!);
+		});
+	}, [allSitesList, isAdmin, allSites, allowedSites]);
 
   useEffect(() => {
     if (window.innerWidth < 768) return;
@@ -168,6 +171,14 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
 
   const navItems = navItemsRaw.filter(item => hasPermission(item.permission.split(':')[0], 'view'));
 
+  const hasAnyObraPermission = 
+    hasPermission('obras', 'view') || 
+    hasPermission('obra_inventory', 'view') || 
+    hasPermission('obra_tools', 'view') || 
+    hasPermission('obra_rented', 'view') || 
+    hasPermission('obra_epi', 'view') || 
+    hasPermission('obra_movements', 'view');
+
   const handlePrimaryNavigate = (path: string) => {
     navigate(path);
   };
@@ -205,7 +216,7 @@ const AdminLayoutContent: React.FC<LayoutProps> = ({ children }) => {
             const isActive = location.pathname === item.path;
             return (<button key={item.path} onClick={() => handlePrimaryNavigate(item.path)} onMouseEnter={(e) => handleTooltip(e, item.label, 'primary')} onMouseLeave={handleTooltipLeave} className={`group relative w-full flex items-center ${isPrimaryCollapsed ? 'md:justify-center' : 'space-x-3'} px-4 py-3 rounded-lg transition-all hover:bg-white/5`} style={getSidebarItemStyle(isActive)}><item.icon className="h-5 w-5 flex-shrink-0" /><span className={`whitespace-nowrap ${(isPrimaryCollapsed && !isMobileOpen) ? 'md:hidden' : 'block'}`}>{item.label}</span></button>);
           })}
-          {(hasPermission('obras', 'view') || isAdmin) && (
+          {(hasAnyObraPermission || isAdmin) && (
             <div className="pt-4 mt-2">
               <p className={`px-4 text-xs font-bold uppercase tracking-wider mb-2 opacity-50 ${(isPrimaryCollapsed && !isMobileOpen) ? 'md:hidden' : 'block'}`}>Obras Ativas</p>
               <div className="space-y-1">

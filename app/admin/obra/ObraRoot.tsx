@@ -218,7 +218,7 @@ const ObraRoot: React.FC = () => {
 
 			{/* Desktop Right Sidebar (Collapsible) */}
 			<aside
-				className={`hidden md:flex flex-col flex-shrink-0 border-l transition-all duration-300 ease-in-out relative ${isSidebarCollapsed ? 'w-4' : 'w-64'}`}
+				className={`hidden md:flex flex-col flex-shrink-0 border-l transition-all duration-300 ease-in-out relative ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}
 				style={{
 					backgroundColor: currentTheme.colors.sidebar,
 					borderColor: currentTheme.colors.border,
@@ -228,43 +228,41 @@ const ObraRoot: React.FC = () => {
 				{/* Toggle Button */}
 				<div
 					onClick={toggleSidebar}
-					className="absolute top-0 bottom-0 left-0 z-40 flex items-center justify-start cursor-pointer group"
-					style={{ width: '12px', marginLeft: '-1px' }}
+					className="absolute top-0 bottom-0 left-0 z-40 flex items-center justify-center cursor-pointer group"
+					style={{ width: '0px' }}
 				>
 					<div
-						className="absolute top-0 bottom-0 left-0 w-[1px] group-hover:w-[2px] transition-all duration-200"
-						style={{ backgroundColor: currentTheme.colors.border }}
-					/>
-					<div
-						className="relative w-5 h-10 flex items-center justify-center rounded-r-md shadow-sm transition-transform duration-200 group-hover:translate-x-0.5"
+						className="relative w-5 h-10 flex items-center justify-center rounded-md shadow-sm transition-all duration-200 group-hover:scale-105"
 						style={{
 							backgroundColor: currentTheme.colors.sidebar,
 							color: currentTheme.colors.sidebarText,
-							transform: isSidebarCollapsed
-								? 'rotate(180deg)'
-								: 'none',
+							border: `1px solid ${currentTheme.colors.border}`,
 						}}
 					>
-						<ChevronRight size={14} />
+						{isSidebarCollapsed ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
 					</div>
 				</div>
 
 				<nav
-					className={`p-4 pt-8 space-y-1 overflow-y-auto overflow-x-hidden no-scrollbar ${isSidebarCollapsed ? 'hidden' : ''}`}
+					className="p-4 pt-8 space-y-1 overflow-y-auto overflow-x-hidden no-scrollbar"
 				>
 					{navItems.map((item) => (
 						<NavLink
 							key={item.path}
 							to={`/admin/obra/${id}/${item.path}`}
-							className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-all hover:bg-white/5 group relative`}
+							onMouseEnter={(e) => handleTooltip(e, item.label)}
+							onMouseLeave={handleTooltipLeave}
+							className={`flex items-center ${isSidebarCollapsed ? 'justify-center' : 'gap-3'} px-4 py-3 rounded-lg text-sm transition-all hover:bg-white/5 group relative`}
 							style={({ isActive }) =>
 								getSidebarItemStyle(isActive)
 							}
 						>
 							<item.icon size={18} className="flex-shrink-0" />
-							<span className="whitespace-nowrap">
-								{item.label}
-							</span>
+							{!isSidebarCollapsed && (
+								<span className="whitespace-nowrap">
+									{item.label}
+								</span>
+							)}
 						</NavLink>
 					))}
 				</nav>

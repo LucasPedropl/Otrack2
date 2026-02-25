@@ -183,37 +183,39 @@ export const TopBar: React.FC<TopBarProps> = ({
 				</div>
 
 				{/* Botão de Configurações - Sempre visível para acesso às configurações locais/dados */}
-				<button
-					onClick={() => {
-						if (location.pathname === '/admin/dados') {
-							navigate('/admin/dashboard');
-						} else {
-							navigate('/admin/dados');
-						}
-					}}
-					className={`p-2 rounded-lg transition-all hover:bg-white/10`}
-					style={{
-						backgroundColor:
-							location.pathname.startsWith('/admin/dados') ||
-							isSettingsOpen
-								? currentTheme.colors.primary
-								: 'transparent',
-						border: `1px solid ${location.pathname.startsWith('/admin/dados') || isSettingsOpen ? currentTheme.colors.primary : 'transparent'}`,
-						color:
-							location.pathname.startsWith('/admin/dados') ||
-							isSettingsOpen
-								? '#fff'
-								: currentTheme.colors.sidebarText,
-						opacity:
-							location.pathname.startsWith('/admin/dados') ||
-							isSettingsOpen
-								? 1
-								: 0.8,
-					}}
-					title="Configurações e Cadastros"
-				>
-					<Settings size={20} />
-				</button>
+				{hasSettingsAccess && (
+					<button
+						onClick={() => {
+							if (location.pathname === '/admin/dados') {
+								navigate('/admin/dashboard');
+							} else {
+								navigate('/admin/dados');
+							}
+						}}
+						className={`p-2 rounded-lg transition-all hover:bg-white/10`}
+						style={{
+							backgroundColor:
+								location.pathname.startsWith('/admin/dados') ||
+								isSettingsOpen
+									? currentTheme.colors.primary
+									: 'transparent',
+							border: `1px solid ${location.pathname.startsWith('/admin/dados') || isSettingsOpen ? currentTheme.colors.primary : 'transparent'}`,
+							color:
+								location.pathname.startsWith('/admin/dados') ||
+								isSettingsOpen
+									? '#fff'
+									: currentTheme.colors.sidebarText,
+							opacity:
+								location.pathname.startsWith('/admin/dados') ||
+								isSettingsOpen
+									? 1
+									: 0.8,
+						}}
+						title="Configurações e Cadastros"
+					>
+						<Settings size={20} />
+					</button>
+				)}
 
 				{/* Divisor */}
 				<div

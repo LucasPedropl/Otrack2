@@ -36,15 +36,6 @@ export const AuthLayout: React.FC<Omit<LayoutProps, 'bgColor'>> = ({ children })
         <div className="p-8">
           {children}
         </div>
-        <div 
-          className="px-8 py-4 border-t text-center"
-          style={{ 
-            backgroundColor: currentTheme.colors.sidebar, // Slightly darker than card usually
-            borderColor: currentTheme.colors.border 
-          }}
-        >
-          <p className="text-xs" style={{ color: currentTheme.colors.textSecondary }}>Sistema seguro de gestão de obras</p>
-        </div>
       </div>
     </div>
   );
