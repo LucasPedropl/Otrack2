@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { HashRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import LoginPage from './app/(auth)/login/Login';
@@ -23,72 +22,210 @@ import UsuariosPage from './app/admin/usuarios/UsuariosPage';
 import { authService } from './services/authService';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AdminLayout } from './components/layout/AdminLayout';
-import { PermissionsProvider, usePermissions } from './contexts/PermissionsContext';
+import {
+	PermissionsProvider,
+	usePermissions,
+} from './contexts/PermissionsContext';
 import { ConstructionSiteProvider } from './contexts/ConstructionSiteContext';
 
-const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const user = authService.getCurrentUser();
-  if (!user) return <Navigate to="/" replace />;
-  return <>{children}</>;
+import { ForcePasswordChange } from './components/auth/ForcePasswordChange';
+
+const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({
+	children,
+}) => {
+	const user = authService.getCurrentUser();
+	const [checkTrigger, setCheckTrigger] = React.useState(0);
+
+	if (!user) return <Navigate to="/" replace />;
+
+	if (user.needsPasswordChange) {
+		return (
+			<ForcePasswordChange
+				user={user}
+				onSuccess={() => {
+					// Força recarregamento para atualizar o user do storage
+					window.location.reload();
+				}}
+			/>
+		);
+	}
+
+	return <>{children}</>;
 };
 
 // Componente para bloquear acesso a módulos sem permissão
-const PermissionGate: React.FC<{ module: string; action?: string; children: React.ReactNode }> = ({ module, action = 'view', children }) => {
-  const { hasPermission, isLoading } = usePermissions();
-  if (isLoading) return null;
-  if (!hasPermission(module, action)) {
-      // Se não tem acesso, joga pro dashboard (que é o local seguro padrão)
-      return <Navigate to="/admin/dashboard" replace />;
-  }
-  return <>{children}</>;
+const PermissionGate: React.FC<{
+	module: string;
+	action?: string;
+	children: React.ReactNode;
+}> = ({ module, action = 'view', children }) => {
+	const { hasPermission, isLoading } = usePermissions();
+	if (isLoading) return null;
+	if (!hasPermission(module, action)) {
+		// Se não tem acesso, joga pro dashboard (que é o local seguro padrão)
+		return <Navigate to="/admin/dashboard" replace />;
+	}
+	return <>{children}</>;
 };
 
 const App: React.FC = () => {
-  return (
-    <ThemeProvider>
-      <PermissionsProvider>
-        <ConstructionSiteProvider>
-          <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-            <Routes>
-              <Route path="/" element={<LoginPage />} />
+	return (
+		<ThemeProvider>
+			<PermissionsProvider>
+				<ConstructionSiteProvider>
+					<HashRouter
+						future={{
+							v7_startTransition: true,
+							v7_relativeSplatPath: true,
+						}}
+					>
+						<Routes>
+							<Route path="/" element={<LoginPage />} />
 
-              <Route element={<ProtectedRoute><AdminLayout><Outlet /></AdminLayout></ProtectedRoute>}>
-                
-                {/* Dashboard tem sua própria verificação interna de permissão no PermissionGate */}
-                <Route path="/admin/dashboard" element={<PermissionGate module="dashboard"><DashboardPage /></PermissionGate>} />
-                <Route path="/admin/settings" element={<SettingsPage />} />
-                <Route path="/admin/dados" element={<SettingsPlaceholder />} />
+							<Route
+								element={
+									<ProtectedRoute>
+										<AdminLayout>
+											<Outlet />
+										</AdminLayout>
+									</ProtectedRoute>
+								}
+							>
+								{/* Dashboard tem sua própria verificação interna de permissão no PermissionGate */}
+								<Route
+									path="/admin/dashboard"
+									element={
+										<PermissionGate module="dashboard">
+											<DashboardPage />
+										</PermissionGate>
+									}
+								/>
+								<Route
+									path="/admin/settings"
+									element={<SettingsPage />}
+								/>
+								<Route
+									path="/admin/dados"
+									element={<SettingsPlaceholder />}
+								/>
 
-                <Route path="/admin/obras" element={<PermissionGate module="obras"><ObrasPage /></PermissionGate>} />
-                
-                <Route path="/admin/insumos" element={<PermissionGate module="orcamento_insumos"><InsumosPage /></PermissionGate>} />
-                <Route path="/admin/unidades" element={<PermissionGate module="orcamento_unidades"><UnidadesPage /></PermissionGate>} />
-                <Route path="/admin/categorias" element={<PermissionGate module="orcamento_categorias"><CategoriasPage /></PermissionGate>} />
+								<Route
+									path="/admin/obras"
+									element={
+										<PermissionGate module="obras">
+											<ObrasPage />
+										</PermissionGate>
+									}
+								/>
 
-                <Route path="/admin/colaboradores" element={<PermissionGate module="mao_obra_colaboradores"><ColaboradoresPage /></PermissionGate>} />
+								<Route
+									path="/admin/insumos"
+									element={
+										<PermissionGate module="orcamento_insumos">
+											<InsumosPage />
+										</PermissionGate>
+									}
+								/>
+								<Route
+									path="/admin/unidades"
+									element={
+										<PermissionGate module="orcamento_unidades">
+											<UnidadesPage />
+										</PermissionGate>
+									}
+								/>
+								<Route
+									path="/admin/categorias"
+									element={
+										<PermissionGate module="orcamento_categorias">
+											<CategoriasPage />
+										</PermissionGate>
+									}
+								/>
 
-                <Route path="/admin/perfis" element={<PermissionGate module="acesso_perfis"><PerfisPage /></PermissionGate>} />
-                <Route path="/admin/usuarios" element={<PermissionGate module="acesso_usuarios"><UsuariosPage /></PermissionGate>} />
+								<Route
+									path="/admin/colaboradores"
+									element={
+										<PermissionGate module="mao_obra_colaboradores">
+											<ColaboradoresPage />
+										</PermissionGate>
+									}
+								/>
 
-                <Route path="/admin/obra/:id" element={<PermissionGate module="obras"><ObraRoot /></PermissionGate>}>
-                   <Route index element={<Navigate to="overview" replace />} />
-                   <Route path="overview" element={<ObraOverview />} />
-                   <Route path="inventory" element={<ObraInventory />} />
-                   <Route path="tools" element={<ObraTools />} />
-                   <Route path="epi" element={<ObraEPI />} />
-                   <Route path="rented" element={<ObraRented />} />
-                   <Route path="movements" element={<ObraMovements />} />
-                   <Route path="settings" element={<PlaceholderPage title="Configurações da Obra" description="Ajustes específicos." />} />
-                </Route>
-              </Route>
+								<Route
+									path="/admin/perfis"
+									element={
+										<PermissionGate module="acesso_perfis">
+											<PerfisPage />
+										</PermissionGate>
+									}
+								/>
+								<Route
+									path="/admin/usuarios"
+									element={
+										<PermissionGate module="acesso_usuarios">
+											<UsuariosPage />
+										</PermissionGate>
+									}
+								/>
 
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </HashRouter>
-        </ConstructionSiteProvider>
-      </PermissionsProvider>
-    </ThemeProvider>
-  );
+								<Route
+									path="/admin/obra/:id"
+									element={
+										<PermissionGate module="obras">
+											<ObraRoot />
+										</PermissionGate>
+									}
+								>
+									<Route
+										index
+										element={
+											<Navigate to="overview" replace />
+										}
+									/>
+									<Route
+										path="overview"
+										element={<ObraOverview />}
+									/>
+									<Route
+										path="inventory"
+										element={<ObraInventory />}
+									/>
+									<Route
+										path="tools"
+										element={<ObraTools />}
+									/>
+									<Route path="epi" element={<ObraEPI />} />
+									<Route
+										path="rented"
+										element={<ObraRented />}
+									/>
+									<Route
+										path="movements"
+										element={<ObraMovements />}
+									/>
+									<Route
+										path="settings"
+										element={
+											<PlaceholderPage
+												title="Configurações da Obra"
+												description="Ajustes específicos."
+											/>
+										}
+									/>
+								</Route>
+							</Route>
+
+							<Route
+								path="*"
+								element={<Navigate to="/" replace />}
+							/>
+						</Routes>
+					</HashRouter>
+				</ConstructionSiteProvider>
+			</PermissionsProvider>
+		</ThemeProvider>
+	);
 };
 
 export default App;
