@@ -102,9 +102,19 @@ export const TopBar: React.FC<TopBarProps> = ({
 			document.removeEventListener('mousedown', handleClickOutside);
 	}, []);
 
+	// Correção de declaração implícita - STORAGE_KEY deve estar importado ou definido se não vier de authService publicamente
+	const STORAGE_KEY = 'obralog_user';
+
 	const handleLogout = async () => {
+		// Primeiro limpa o storage local para que qualquer refresh subsequente não tente validar auth
+		localStorage.removeItem(STORAGE_KEY);
+		sessionStorage.removeItem(STORAGE_KEY);
+
+		// Executa logout do Firebase
 		await authService.logout();
-		navigate('/');
+
+		// Força navegação completa para limpar qualquer estado de memória
+		window.location.href = '/';
 	};
 
 	const getInitials = (name?: string) => {
@@ -130,11 +140,11 @@ export const TopBar: React.FC<TopBarProps> = ({
 				}}
 			/>
 
-			{/* Esquerda: Trigger do Menu Mobile + Título da Página */}
+			{/* Esquerda: Trigger do Menu Mobile (Removido em favor da BottomBar) + Título da Página */}
 			<div className="flex items-center gap-4">
 				<button
 					onClick={toggleMobileSidebar}
-					className="md:hidden p-2 -ml-2 rounded-lg hover:bg-white/10 transition-colors"
+					className="hidden p-2 -ml-2 rounded-lg hover:bg-white/10 transition-colors"
 					style={{ color: currentTheme.colors.sidebarText }}
 				>
 					<Menu size={24} />

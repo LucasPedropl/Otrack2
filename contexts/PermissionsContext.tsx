@@ -95,7 +95,8 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({
 		if (
 			module === 'dashboard' ||
 			module === 'settings_placeholder' ||
-			module === 'settings'
+			module === 'settings' ||
+			module === 'obra_overview'
 		)
 			return true;
 

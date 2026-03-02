@@ -117,11 +117,29 @@ const ObraRoot: React.FC = () => {
 			},
 		];
 
-		return items.filter(
-			(item) =>
-				hasPermission(item.permission, 'view') ||
-				hasPermission('obras', 'view'),
-		); // Fallback to 'obras:view' for backward compatibility or general access
+		return items.filter((item) => {
+			// Módulos que requerem permissões específicas (sem fallback)
+			if (
+				[
+					'obra_epi',
+					'obra_rented',
+					'obra_movements',
+					'obra_inventory',
+					'obra_tools',
+				].includes(item.permission)
+			) {
+				return hasPermission(item.permission, 'view');
+			}
+			// Para "overview", permite acesso se tiver qualquer permissão de visualização na obra
+			if (item.permission === 'obra_overview') {
+				return (
+					hasPermission('obra_overview', 'view') ||
+					hasPermission('obras', 'view')
+				);
+			}
+
+			return hasPermission(item.permission, 'view');
+		});
 	}, [hasPermission]);
 
 	const quickActions = useMemo(() => {
@@ -152,9 +170,7 @@ const ObraRoot: React.FC = () => {
 			},
 		];
 		return actions.filter(
-			(action) =>
-				hasPermission(action.permission, 'create') ||
-				hasPermission('obras', 'create'),
+			(action) => hasPermission(action.permission, 'create'), // QuickActions: Apenas se tiver permissão de criação estritamente
 		);
 	}, [id, navigate, hasPermission]);
 
@@ -239,13 +255,15 @@ const ObraRoot: React.FC = () => {
 							border: `1px solid ${currentTheme.colors.border}`,
 						}}
 					>
-						{isSidebarCollapsed ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
+						{isSidebarCollapsed ? (
+							<ChevronLeft size={14} />
+						) : (
+							<ChevronRight size={14} />
+						)}
 					</div>
 				</div>
 
-				<nav
-					className="p-4 pt-8 space-y-1 overflow-y-auto overflow-x-hidden no-scrollbar"
-				>
+				<nav className="p-4 pt-8 space-y-1 overflow-y-auto overflow-x-hidden no-scrollbar">
 					{navItems.map((item) => (
 						<NavLink
 							key={item.path}

@@ -11,7 +11,7 @@ import { useConstructionSites } from '../../../contexts/ConstructionSiteContext'
 
 const ObrasPage: React.FC = () => {
   const { currentTheme } = useTheme();
-  const { hasPermission } = usePermissions();
+  const { hasPermission, allSites, allowedSites } = usePermissions();
   const { sites, refreshSites } = useConstructionSites(); // Usando Contexto
   const navigate = useNavigate();
   
@@ -107,9 +107,15 @@ const ObrasPage: React.FC = () => {
     }
   };
 
-  const filteredSites = sites.filter(site => 
-    site.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredSites = sites.filter(site => {
+    // 1. Filtro por Permissão (Se não tiver acesso total, filtra pela lista de permitidos)
+    if (!allSites && !allowedSites.includes(site.id!)) {
+      return false;
+    }
+    
+    // 2. Filtro por Busca
+    return site.name.toLowerCase().includes(searchTerm.toLowerCase());
+  });
 
   // Dynamic Input Style
   const dynamicInputStyle = { 
