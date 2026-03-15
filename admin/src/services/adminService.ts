@@ -61,21 +61,16 @@ export const adminService = {
 		companyId: string,
 		userData: { email: string; tempPassword?: string },
 	) => {
-		const newUserData: SystemUser = {
-			id: '', // Placeholder, will be ignored by addDoc
+		const newUserData: any = {
 			email: userData.email,
 			name: '', // Nome inicialmente vazio, admin define depois
 			companyId: companyId,
 			role: 'admin',
-			tempPassword: userData.tempPassword || undefined,
 			needsPasswordChange: true,
-			createdAt: new Date(), // Local date for now, will be overwritten by serverTimestamp if needed
 		};
-
-		// Use addDoc para gerar ID automático, ou setDoc com email?
-		// Melhor ID automático para permitir mudança de email no futuro.
-		// Mas para login, precisamos encontrar por email...
-		// Vou usar addDoc e garantir unicidade via query na hora de criar (TODO).
+		if (userData.tempPassword) {
+			newUserData.tempPassword = userData.tempPassword;
+		}
 
 		// check uniqueness of email first?
 		// for now just add

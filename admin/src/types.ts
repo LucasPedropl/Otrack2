@@ -4,6 +4,14 @@ export interface Company {
 	createdAt: any; // Firestore Timestamp
 }
 
+export interface Instance {
+	id: string;
+	domain: string;
+	dbPrefix: string;
+	active: boolean;
+	createdAt: any;
+}
+
 export interface SystemUser {
 	id: string;
 	name: string;

@@ -1,10 +1,10 @@
-import React from 'react';
-import { LayoutDashboard, Users, LogOut, Settings } from 'lucide-react';
+import { LayoutDashboard, LogOut, Settings, Database } from 'lucide-react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 
 export default function AdminLayout() {
 	const { logout } = useAuth();
+	const location = useLocation();
 	const isActive = (path: string) => {
 		return location.pathname === path
 			? 'bg-gray-800 text-white'
@@ -31,6 +31,14 @@ export default function AdminLayout() {
 					>
 						<LayoutDashboard size={20} />
 						<span className="font-medium">Dashboard</span>
+					</Link>
+
+					<Link
+						to="/dados"
+						className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${isActive('/dados')}`}
+					>
+						<Database size={20} />
+						<span className="font-medium">Uso de Dados</span>
 					</Link>
 
 					{/* Future sections */}

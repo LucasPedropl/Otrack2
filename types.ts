@@ -1,14 +1,29 @@
 import React from 'react';
 
+export interface UserWorkspace {
+	companyId: string;
+	companyName: string;
+	role: 'admin' | 'almoxarife' | 'operario';
+	profileId?: string;
+}
+
 export interface User {
 	id?: string;
 	name?: string;
 	email: string;
 	password?: string;
-	role: 'admin' | 'almoxarife' | 'operario';
-	companyId?: string;
+	tempPassword?: string | null;
 	needsPasswordChange?: boolean;
+	workspaces: UserWorkspace[]; // Lista de empresas que o usuário tem acesso
+	allowedCompanyIds?: string[]; // Espelho de segurança em Array simples para o firestore.rules
+
+	// Campos dinâmicos resolvidos no front-end para a empresa ativa atual:
+	activeWorkspaceId?: string;
+	role?: 'admin' | 'almoxarife' | 'operario';
+	companyId?: string;
 	profileId?: string;
+	companyName?: string;
+
 	createdAt: Date;
 }
 
@@ -18,6 +33,7 @@ export interface AccessProfile {
 	permissions: string[];
 	allSites: boolean; // Flag explícita: true = todas, false = apenas as da lista
 	allowedSites: string[];
+	companyId?: string;
 }
 
 export interface InventoryItem {
@@ -32,6 +48,7 @@ export interface InventoryItem {
 	stockControl: boolean;
 	minThreshold: number;
 	updatedAt: Date;
+	companyId?: string;
 }
 
 export interface SiteInventoryItem {
@@ -114,12 +131,14 @@ export interface ConstructionSite {
 	id?: string;
 	name: string;
 	createdAt: Date;
+	companyId?: string;
 }
 
 export interface MeasurementUnit {
 	id?: string;
 	name: string;
 	abbreviation: string;
+	companyId?: string;
 }
 
 export interface ItemCategory {
@@ -128,6 +147,7 @@ export interface ItemCategory {
 	category: string;
 	subcategory: string;
 	registrationType: 'Próprio' | 'Padrão';
+	companyId?: string;
 }
 
 export interface ThemeColors {

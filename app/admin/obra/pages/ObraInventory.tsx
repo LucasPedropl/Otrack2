@@ -140,7 +140,7 @@ const ObraInventory: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!siteId) return;
+    if (!siteId || isLoading) return;
 
     setIsLoading(true);
     try {

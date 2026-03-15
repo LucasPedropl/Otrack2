@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { LogIn, AlertCircle } from 'lucide-react';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { AlertCircle } from 'lucide-react';
+import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 export default function Login() {
@@ -68,6 +68,7 @@ export default function Login() {
 		}
 	};
 
+	/* eslint-disable-next-line no-unused-vars
 	const handleBootstrap = async () => {
 		if (!user?.email) return;
 		try {
@@ -83,7 +84,7 @@ export default function Login() {
 				'Erro ao criar admin inicial. Verifique as regras do Firestore.',
 			);
 		}
-	};
+	}; */
 
 	return (
 		<div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
@@ -104,25 +105,16 @@ export default function Login() {
 							{error}
 						</div>
 						{user && (
-							<div className="flex flex-col gap-2 mt-2 pl-6">
+							<div className="flex flex-col gap-2 mt-2 pl-6 border-t border-red-100 pt-2">
 								<p className="text-xs text-gray-700">
 									Logado como: <strong>{user.email}</strong>
 								</p>
-								<div className="flex gap-2">
-									<button
-										onClick={logoutAndClear}
-										className="text-xs text-red-600 underline hover:text-red-800"
-									>
-										Sair
-									</button>
-									<button
-										onClick={handleBootstrap}
-										className="text-xs text-blue-600 underline hover:text-blue-800"
-										title="Use apenas no primeiro acesso para criar o admin"
-									>
-										Registrar como Admin (Bootstrap)
-									</button>
-								</div>
+								<button
+									onClick={logoutAndClear}
+									className="text-xs text-red-600 underline hover:text-red-800 text-left"
+								>
+									Sair e tentar outra conta
+								</button>
 							</div>
 						)}
 					</div>

@@ -8,7 +8,9 @@ import {
 import AdminLayout from './components/layout/AdminLayout';
 import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
+import UsageStats from './pages/UsageStats';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ToastProvider } from '../../contexts/ToastContext';
 
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
 	const { user, loading } = useAuth();
@@ -21,24 +23,27 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
 
 function App() {
 	return (
-		<AuthProvider>
-			<Router>
-				<Routes>
-					<Route path="/login" element={<Login />} />
-					<Route
-						path="/"
-						element={
-							<PrivateRoute>
-								<AdminLayout />
-							</PrivateRoute>
-						}
-					>
-						<Route index element={<Dashboard />} />
-						<Route path="*" element={<Navigate to="/" />} />
-					</Route>
-				</Routes>
-			</Router>
-		</AuthProvider>
+		<ToastProvider>
+			<AuthProvider>
+				<Router>
+					<Routes>
+						<Route path="/login" element={<Login />} />
+						<Route
+							path="/"
+							element={
+								<PrivateRoute>
+									<AdminLayout />
+								</PrivateRoute>
+							}
+						>
+							<Route index element={<Dashboard />} />
+							<Route path="dados" element={<UsageStats />} />
+							<Route path="*" element={<Navigate to="/" />} />
+						</Route>
+					</Routes>
+				</Router>
+			</AuthProvider>
+		</ToastProvider>
 	);
 }
 

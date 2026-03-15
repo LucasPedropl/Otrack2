@@ -1,4 +1,4 @@
-import { app, auth, db } from '../lib/firebase';
+import { auth, db } from '../lib/firebase';
 import {
 	type User,
 	GoogleAuthProvider,
@@ -19,7 +19,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
 // Helper function to check if user is an admin
-const checkIsAdmin = async (email: string | null): Promise<boolean> => {
+export const checkIsAdmin = async (email: string | null): Promise<boolean> => {
 	if (!email) return false;
 	try {
 		const adminDocRef = doc(db, 'system_admins', email);

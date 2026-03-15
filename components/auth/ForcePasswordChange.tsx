@@ -14,6 +14,7 @@ export const ForcePasswordChange: React.FC<ForcePasswordChangeProps> = ({
 	user,
 	onSuccess,
 }) => {
+	const [newName, setNewName] = useState(user.name || '');
 	const [newPassword, setNewPassword] = useState('');
 	const [confirmPassword, setConfirmPassword] = useState('');
 	const [error, setError] = useState('');
@@ -21,6 +22,10 @@ export const ForcePasswordChange: React.FC<ForcePasswordChangeProps> = ({
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
+		if (!newName.trim()) {
+			setError('O nome é obrigatório.');
+			return;
+		}
 		if (newPassword !== confirmPassword) {
 			setError('As senhas não conferem.');
 			return;
@@ -40,9 +45,10 @@ export const ForcePasswordChange: React.FC<ForcePasswordChangeProps> = ({
 			// 1. Atualiza senha no Authentication
 			await updatePassword(currentUser, newPassword);
 
-			// 2. Atualiza flag no Firestore
+			// 2. Atualiza flag e nome no Firestore
 			const userRef = doc(db, 'users', user.id || currentUser.uid);
 			await updateDoc(userRef, {
+				name: newName.trim(),
 				needsPasswordChange: false,
 				tempPassword: null, // Garante limpeza caso tenha sobrado
 			});
@@ -78,6 +84,20 @@ export const ForcePasswordChange: React.FC<ForcePasswordChangeProps> = ({
 				)}
 
 				<form onSubmit={handleSubmit}>
+					<div className="mb-4">
+						<label className="block text-sm font-medium text-gray-700 mb-1">
+							Seu Nome
+						</label>
+						<input
+							type="text"
+							className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none"
+							value={newName}
+							onChange={(e) => setNewName(e.target.value)}
+							required
+							placeholder="Como devemos chamar você?"
+						/>
+					</div>
+
 					<div className="mb-4">
 						<label className="block text-sm font-medium text-gray-700 mb-1">
 							Nova Senha

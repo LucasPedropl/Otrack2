@@ -53,20 +53,20 @@ const ColaboradoresPage: React.FC = () => {
 	// Deletion State
 	const [deleteId, setDeleteId] = useState<string | null>(null);
 
-	const fetchCollaborators = async () => {
-		setLoading(true);
+	const fetchCollaborators = async (showLoader = false) => {
+		if (showLoader) setLoading(true);
 		try {
 			const data = await collaboratorService.getAll();
 			setCollaborators(data);
 		} catch (error) {
 			console.error('Error fetching collaborators:', error);
 		} finally {
-			setLoading(false);
+			if (showLoader) setLoading(false);
 		}
 	};
 
 	useEffect(() => {
-		fetchCollaborators();
+		fetchCollaborators(true);
 	}, []);
 
 	const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {

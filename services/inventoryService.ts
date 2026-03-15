@@ -1,59 +1,87 @@
 import { db } from '../lib/firebase';
-import { collection, getDocs, addDoc, serverTimestamp, query, orderBy, doc, deleteDoc, updateDoc } from 'firebase/firestore';
+import {
+	collection,
+	getDocs,
+	addDoc,
+	serverTimestamp,
+	query,
+	orderBy,
+	doc,
+	deleteDoc,
+	updateDoc,
+	where,
+} from 'firebase/firestore';
 import { InventoryItem } from '../types';
+import { authService } from './authService';
 
 const COLLECTION_NAME = 'inventory';
 
 export const inventoryService = {
-  getAll: async (): Promise<InventoryItem[]> => {
-    const ref = collection(db, COLLECTION_NAME);
-    const q = query(ref, orderBy("name"));
-    const snapshot = await getDocs(q);
-    
-    return snapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        code: data.code,
-        name: data.name,
-        quantity: data.quantity ?? 0,
-        unit: data.unit,
-        category: data.category,
-        costType: data.costType,
-        unitValue: data.unitValue,
-        stockControl: data.stockControl ?? true,
-        minThreshold: data.minThreshold ?? 0,
-        updatedAt: data.updatedAt?.toDate() || new Date()
-      } as InventoryItem;
-    });
-  },
+	getAll: async (): Promise<InventoryItem[]> => {
+		const companyId = authService.getCurrentUser()?.companyId;
+		const ref = collection(db, COLLECTION_NAME);
+		let q = query(ref, orderBy('name'));
 
-  add: async (item: Omit<InventoryItem, 'id' | 'updatedAt'>) => {
-    const ref = collection(db, COLLECTION_NAME);
-    await addDoc(ref, {
-      ...item,
-      updatedAt: serverTimestamp()
-    });
-  },
+		if (companyId) {
+			q = query(
+				ref,
+				where('companyId', '==', companyId),
+				orderBy('name'),
+			);
+		}
 
-  update: async (id: string, item: Partial<InventoryItem>) => {
-    const ref = doc(db, COLLECTION_NAME, id);
-    // Remove undefined fields
-    const dataToUpdate = Object.entries(item).reduce((acc, [key, value]) => {
-      if (value !== undefined) {
-        acc[key] = value;
-      }
-      return acc;
-    }, {} as any);
-    
-    await updateDoc(ref, {
-      ...dataToUpdate,
-      updatedAt: serverTimestamp()
-    });
-  },
+		const snapshot = await getDocs(q);
 
-  delete: async (id: string) => {
-    const ref = doc(db, COLLECTION_NAME, id);
-    await deleteDoc(ref);
-  }
+		return snapshot.docs.map((doc) => {
+			const data = doc.data();
+			return {
+				id: doc.id,
+				code: data.code,
+				name: data.name,
+				quantity: data.quantity ?? 0,
+				unit: data.unit,
+				category: data.category,
+				costType: data.costType,
+				unitValue: data.unitValue,
+				stockControl: data.stockControl ?? true,
+				minThreshold: data.minThreshold ?? 0,
+				companyId: data.companyId,
+				updatedAt: data.updatedAt?.toDate() || new Date(),
+			} as InventoryItem;
+		});
+	},
+
+	add: async (item: Omit<InventoryItem, 'id' | 'updatedAt'>) => {
+		const companyId = authService.getCurrentUser()?.companyId;
+		const ref = collection(db, COLLECTION_NAME);
+		await addDoc(ref, {
+			...item,
+			companyId: companyId || null,
+			updatedAt: serverTimestamp(),
+		});
+	},
+
+	update: async (id: string, item: Partial<InventoryItem>) => {
+		const ref = doc(db, COLLECTION_NAME, id);
+		// Remove undefined fields
+		const dataToUpdate = Object.entries(item).reduce(
+			(acc, [key, value]) => {
+				if (value !== undefined) {
+					acc[key] = value;
+				}
+				return acc;
+			},
+			{} as any,
+		);
+
+		await updateDoc(ref, {
+			...dataToUpdate,
+			updatedAt: serverTimestamp(),
+		});
+	},
+
+	delete: async (id: string) => {
+		const ref = doc(db, COLLECTION_NAME, id);
+		await deleteDoc(ref);
+	},
 };

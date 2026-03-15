@@ -1,14 +1,38 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Key, Building2, UserPlus, Users } from 'lucide-react';
+import {
+	Plus,
+	Trash2,
+	Building2,
+	UserPlus,
+	Users,
+	Copy,
+} from 'lucide-react';
 import type { Company, SystemUser } from '../types';
 import { adminService } from '../services/adminService';
+import { useToast } from '../../../contexts/ToastContext';
+import { ConfirmModal } from '../../../components/ui/ConfirmModal';
 
 export default function Dashboard() {
 	const [companies, setCompanies] = useState<Company[]>([]);
 	const [loading, setLoading] = useState(true);
+	const toast = useToast();
+
+	// Confirm Dialog State
+	const [confirmConfig, setConfirmConfig] = useState<{
+		isOpen: boolean;
+		title: string;
+		message: string;
+		onConfirm: () => void;
+	}>({
+		isOpen: false,
+		title: '',
+		message: '',
+		onConfirm: () => {},
+	});
 
 	// Estado para formulário de NOVA EMPRESA
 	const [newCompanyName, setNewCompanyName] = useState('');
+	const [isSubmittingCompany, setIsSubmittingCompany] = useState(false);
 
 	// Estado para gerenciar qual empresa está expandida/selecionada
 	const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(
@@ -19,103 +43,142 @@ export default function Dashboard() {
 
 	// Estado para formulário de NOVO ADMIN (dentro da empresa selecionada)
 	const [newAdminEmail, setNewAdminEmail] = useState('');
-	const [newAdminTempPassword, setNewAdminTempPassword] = useState('');
+	const [isSubmittingAdmin, setIsSubmittingAdmin] = useState(false);
 
 	useEffect(() => {
-		loadCompanies();
+		loadCompanies(true);
 	}, []);
 
 	// Se mudar a empresa selecionada, carrega seus usuários
 	useEffect(() => {
 		if (selectedCompanyId) {
-			loadCompanyUsers(selectedCompanyId);
+			loadCompanyUsers(selectedCompanyId, true);
 		} else {
 			setCompanyUsers([]);
 		}
 	}, [selectedCompanyId]);
 
-	const loadCompanies = async () => {
-		setLoading(true);
+	const loadCompanies = async (showLoader = false) => {
+		if (showLoader) setLoading(true);
 		try {
 			const data = await adminService.getCompanies();
 			setCompanies(data);
 		} catch (error) {
 			console.error('Erro ao buscar empresas:', error);
 		} finally {
-			setLoading(false);
+			if (showLoader) setLoading(false);
 		}
 	};
 
-	const loadCompanyUsers = async (companyId: string) => {
-		setLoadingUsers(true);
+	const loadCompanyUsers = async (companyId: string, showLoader = false) => {
+		if (showLoader) setLoadingUsers(true);
 		try {
 			const users = await adminService.getCompanyAdmins(companyId);
 			setCompanyUsers(users);
 		} catch (error) {
 			console.error('Erro ao buscar admins da empresa:', error);
 		} finally {
-			setLoadingUsers(false);
+			if (showLoader) setLoadingUsers(false);
 		}
 	};
 
 	const handleCreateCompany = async (e: React.FormEvent) => {
 		e.preventDefault();
-		if (!newCompanyName.trim()) return;
+		if (!newCompanyName.trim() || isSubmittingCompany) return;
 
+		setIsSubmittingCompany(true);
 		try {
 			await adminService.createCompany(newCompanyName);
+			toast.success(`Empresa "${newCompanyName}" criada com sucesso!`);
 			setNewCompanyName('');
 			loadCompanies();
 		} catch (error) {
 			console.error('Erro ao criar empresa:', error);
-			alert('Erro ao criar empresa.');
+			toast.error('Erro ao criar empresa.');
+		} finally {
+			setIsSubmittingCompany(false);
 		}
 	};
 
-	const handleDeleteCompany = async (id: string) => {
-		if (!window.confirm('Tem certeza? Isso pode deixar usuários órfãos.'))
-			return;
+	const performDeleteCompany = async (id: string) => {
 		try {
 			await adminService.deleteCompany(id);
+			toast.success('Empresa excluída com sucesso.');
 			if (selectedCompanyId === id) setSelectedCompanyId(null);
 			loadCompanies();
 		} catch (error) {
 			console.error('Erro ao deletar empresa:', error);
+			toast.error('Erro ao excluir empresa.');
 		}
+	};
+
+	const handleDeleteCompany = (id: string) => {
+		setConfirmConfig({
+			isOpen: true,
+			title: 'Excluir Empresa?',
+			message:
+				'Tem certeza? Isso pode deixar usuários órfãos em outros painéis. Esta ação não pode ser desfeita.',
+			onConfirm: () => performDeleteCompany(id),
+		});
 	};
 
 	const handleCreateAdmin = async (e: React.FormEvent) => {
 		e.preventDefault();
-		if (
-			!selectedCompanyId ||
-			!newAdminEmail.trim() ||
-			!newAdminTempPassword.trim()
-		)
+		if (!selectedCompanyId || !newAdminEmail.trim() || isSubmittingAdmin)
 			return;
+
+		setIsSubmittingAdmin(true);
+
+		// Gera uma senha de 8 caracteres para todos (podem usar para login email/senha, ou simplesmente ignorar e usar Google)
+		const generatedPass = Math.random().toString(36).substring(2, 10);
 
 		try {
 			await adminService.createCompanyAdmin(selectedCompanyId, {
 				email: newAdminEmail,
-				tempPassword: newAdminTempPassword,
+				tempPassword: generatedPass,
 			});
+
+			toast.success('Admin cadastrado com sucesso!');
+			// Copia a senha gerada (e email) para a área de transferência do admin
+			copyCredentials(newAdminEmail, generatedPass);
+
 			setNewAdminEmail('');
-			setNewAdminTempPassword('');
 			loadCompanyUsers(selectedCompanyId);
 		} catch (error) {
 			console.error('Erro ao criar admin:', error);
-			alert('Erro ao criar admin. Verifique se o email é válido.');
+			toast.error('Erro ao criar admin. Verifique se o email é válido.');
+		} finally {
+			setIsSubmittingAdmin(false);
 		}
 	};
 
-	const handleDeleteUser = async (userId: string) => {
-		if (!window.confirm('Tem certeza que deseja remover este admin?'))
-			return;
+	const performDeleteUser = async (userId: string) => {
 		try {
 			await adminService.deleteUser(userId);
+			toast.success('Administrador removido com sucesso.');
 			if (selectedCompanyId) loadCompanyUsers(selectedCompanyId);
 		} catch (error) {
 			console.error('Erro ao remover usuário:', error);
+			toast.error('Erro ao remover usuário.');
 		}
+	};
+
+	const handleDeleteUser = (userId: string) => {
+		setConfirmConfig({
+			isOpen: true,
+			title: 'Remover Administrador?',
+			message:
+				'Tem certeza que deseja remover este admin? O acesso dele será bloqueado.',
+			onConfirm: () => performDeleteUser(userId),
+		});
+	};
+
+	const copyCredentials = (email: string, pass: string | undefined) => {
+		const text = pass
+			? `Acesso - Geplano Otrack\nEmail: ${email}\nSenha Temp: ${pass}`
+			: `Acesso - Geplano Otrack\nEmail: ${email}\nAcesse pelo Google`;
+		navigator.clipboard.writeText(text);
+		toast.success('Credenciais copiadas para a área de transferência');
 	};
 
 	const toggleCompanySelection = (id: string) => {
@@ -158,11 +221,11 @@ export default function Dashboard() {
 					/>
 					<button
 						type="submit"
-						disabled={!newCompanyName.trim()}
+						disabled={!newCompanyName.trim() || isSubmittingCompany}
 						className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium transition-colors"
 					>
 						<Plus size={20} />
-						Criar Empresa
+						{isSubmittingCompany ? 'Criando...' : 'Criar Empresa'}
 					</button>
 				</form>
 			</div>
@@ -278,35 +341,14 @@ export default function Dashboard() {
 													className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 outline-none text-sm"
 												/>
 											</div>
-											<div className="w-full sm:w-64">
-												<label className="block text-xs font-medium text-gray-500 mb-1">
-													Senha Temporária
-												</label>
-												<div className="relative">
-													<div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
-														<Key size={14} />
-													</div>
-													<input
-														type="text"
-														required
-														placeholder="Ex: 123456"
-														value={
-															newAdminTempPassword
-														}
-														onChange={(e) =>
-															setNewAdminTempPassword(
-																e.target.value,
-															)
-														}
-														className="w-full pl-9 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 outline-none text-sm font-mono"
-													/>
-												</div>
-											</div>
 											<button
 												type="submit"
-												className="w-full sm:w-auto bg-green-600 text-white px-5 py-2 rounded-md hover:bg-green-700 text-sm font-medium whitespace-nowrap transition-colors shadow-sm"
+												disabled={isSubmittingAdmin}
+												className="w-full sm:w-auto bg-green-600 text-white px-5 py-2 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium whitespace-nowrap transition-colors shadow-sm"
 											>
-												Cadastrar Admin
+												{isSubmittingAdmin
+													? 'Cadastrando...'
+													: 'Cadastrar Admin'}
 											</button>
 										</form>
 									</div>
@@ -420,7 +462,23 @@ export default function Dashboard() {
 																		</span>
 																	)}
 																</td>
-																<td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+																<td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium flex gap-2 justify-end">
+																	<button
+																		onClick={() =>
+																			copyCredentials(
+																				user.email,
+																				user.tempPassword,
+																			)
+																		}
+																		className="text-blue-600 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 p-2 rounded-lg transition-colors"
+																		title="Copiar Credenciais (E-mail e Senha)"
+																	>
+																		<Copy
+																			size={
+																				16
+																			}
+																		/>
+																	</button>
 																	<button
 																		onClick={() =>
 																			handleDeleteUser(
@@ -450,6 +508,15 @@ export default function Dashboard() {
 					))
 				)}
 			</div>
+			<ConfirmModal
+				isOpen={confirmConfig.isOpen}
+				title={confirmConfig.title}
+				message={confirmConfig.message}
+				onConfirm={confirmConfig.onConfirm}
+				onCancel={() =>
+					setConfirmConfig((prev) => ({ ...prev, isOpen: false }))
+				}
+			/>
 		</div>
 	);
 }

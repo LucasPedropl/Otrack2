@@ -16,12 +16,6 @@ const PermissionsContext = createContext<PermissionsContextType | undefined>(
 	undefined,
 );
 
-const SUPER_ADMIN_EMAILS = [
-	'pedrolucasmota2005@gmail.com',
-	'pedro@gmail.com',
-	'teste@gmail.com',
-];
-
 export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({
 	children,
 }) => {
@@ -36,7 +30,7 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({
 			setIsLoading(true);
 
 			if (user) {
-				if (SUPER_ADMIN_EMAILS.includes(user.email)) {
+				if (user.role === 'admin') {
 					setPermissions(['admin:full']);
 					setAllowedSites([]);
 					setAllSites(true);

@@ -5,7 +5,7 @@ import {
 	GoogleAuthProvider,
 	signOut,
 	onAuthStateChanged,
-	User as FirebaseUser,
+	type User as FirebaseUser,
 	setPersistence,
 	browserLocalPersistence,
 	browserSessionPersistence,
@@ -24,13 +24,8 @@ import {
 	disableNetwork,
 	enableNetwork,
 } from 'firebase/firestore';
-import { User } from '../types';
+import type { User, UserWorkspace } from '../types';
 
-const ADMIN_EMAILS = [
-	'pedrolucasmota2005@gmail.com',
-	'pedro@gmail.com',
-	'teste@gmail.com',
-];
 const STORAGE_KEY = 'obralog_user';
 
 export const authService = {
@@ -41,16 +36,70 @@ export const authService = {
 		// 1. Usuário já existe com UID correto
 		if (userDocSnap.exists()) {
 			const data = userDocSnap.data();
-			return {
+
+			// Lida com retrocompatibilidade: converte formato antigo para o novo array de workspaces
+			let workspaces: UserWorkspace[] = data.workspaces || [];
+			if (workspaces.length === 0 && data.companyId) {
+				const fallbackWorkspace: any = {
+					companyId: data.companyId,
+					companyName: 'Minha Empresa', // Fallback genérico para legados
+					role: data.role || 'operario',
+				};
+				if (data.profileId !== undefined) {
+					fallbackWorkspace.profileId = data.profileId;
+				}
+				workspaces.push(fallbackWorkspace);
+			}
+
+			// Prepara o objeto base do usuário
+			const user: User = {
 				id: firebaseUser.uid,
 				name: data.name,
 				email: data.email,
-				role: data.role || 'operario',
-				companyId: data.companyId,
-				profileId: data.profileId,
+				workspaces: workspaces,
+				allowedCompanyIds: workspaces.map(
+					(w: UserWorkspace) => w.companyId,
+				),
 				needsPasswordChange: data.needsPasswordChange,
 				createdAt: data.createdAt?.toDate() || new Date(),
 			};
+
+			// Garante que o doc do banco tem a lista espelhada atualizada para as rules do firestore
+			if (
+				!data.allowedCompanyIds ||
+				data.allowedCompanyIds.length !== workspaces.length
+			) {
+				setDoc(
+					userDocRef,
+					{ ...data, allowedCompanyIds: user.allowedCompanyIds },
+					{ merge: true },
+				).catch(console.error);
+			}
+
+			// Mantém o workspace atual se ele já estivesse salvo no storage local (durante um sync de page reload)
+			const existingSession = authService.getCurrentUser();
+			if (
+				existingSession &&
+				existingSession.activeWorkspaceId &&
+				workspaces.some(
+					(w) => w.companyId === existingSession.activeWorkspaceId,
+				)
+			) {
+				return authService.applyActiveWorkspace(
+					user,
+					existingSession.activeWorkspaceId,
+				);
+			}
+
+			// Se só tem 1 workspace, já define ele como ativo por padrão
+			if (workspaces.length === 1) {
+				return authService.applyActiveWorkspace(
+					user,
+					workspaces[0].companyId,
+				);
+			}
+
+			return user;
 		}
 
 		// 2. Primeiro acesso: Usuário pré-cadastrado (Invite)
@@ -65,36 +114,99 @@ export const authService = {
 			const inviteDoc = querySnap.docs[0];
 			const inviteData = inviteDoc.data();
 
+			// Converte para o novo formato de Workspaces
+			let workspaces = inviteData.workspaces || [];
+			if (workspaces.length === 0 && inviteData.companyId) {
+				const fallbackWorkspace: any = {
+					companyId: inviteData.companyId,
+					companyName: 'Empresa',
+					role: inviteData.role || 'operario',
+				};
+				if (inviteData.profileId !== undefined) {
+					fallbackWorkspace.profileId = inviteData.profileId;
+				}
+				workspaces.push(fallbackWorkspace);
+			}
+
 			// Prepara dados para o novo documento com UID
 			const newUser: User = {
 				id: firebaseUser.uid,
 				name: inviteData.name || firebaseUser.displayName || 'Usuário',
 				email: firebaseUser.email!,
-				role: inviteData.role || 'operario',
-				companyId: inviteData.companyId, // IMPORTANTE: Vincula à empresa
-				profileId: inviteData.profileId || '',
+				workspaces: workspaces,
 				needsPasswordChange: inviteData.needsPasswordChange ?? true, // Força troca se não definido
 				createdAt: new Date(),
 			};
 
 			// Salva no doc com UID
-			await setDoc(userDocRef, {
+			const finalData = {
 				...newUser,
+				allowedCompanyIds: workspaces.map(
+					(w: UserWorkspace) => w.companyId,
+				),
 				createdAt: serverTimestamp(),
 				tempPassword: null, // Limpa a senha temporária no novo doc
+			};
+
+			// Remove eventuais campos undefined antes de salvar no Firestore
+			Object.keys(finalData).forEach(key => {
+				if ((finalData as any)[key] === undefined) {
+					delete (finalData as any)[key];
+				}
 			});
+
+			await setDoc(userDocRef, finalData);
 
 			// Remove o documento de convite antigo para evitar duplicatas e limpar senha exposta
 			await deleteDoc(inviteDoc.ref);
 
+			if (newUser.workspaces.length === 1) {
+				return authService.applyActiveWorkspace(
+					newUser,
+					newUser.workspaces[0].companyId,
+				);
+			}
+
 			return newUser;
 		}
 
-		// 3. Não autorizado
+		// 3. Não autorizado (SaaS Fechado)
 		await signOut(auth);
 		throw new Error(
-			'Acesso negado. Seu email não foi convidado para nenhuma empresa.',
+			'Acesso negado. Seu e-mail não foi convidado por nenhuma empresa.',
 		);
+	},
+
+	applyActiveWorkspace: (user: User, companyId: string): User => {
+		const workspace = user.workspaces.find(
+			(w) => w.companyId === companyId,
+		);
+		if (!workspace) return user;
+
+		return {
+			...user,
+			activeWorkspaceId: workspace.companyId,
+			companyId: workspace.companyId, // Para retrocompatibilidade com services antigos
+			companyName: workspace.companyName,
+			role: workspace.role,
+			profileId: workspace.profileId,
+		};
+	},
+
+	switchWorkspace: (companyId: string) => {
+		const user = authService.getCurrentUser();
+		if (!user) return;
+
+		const updatedUser = authService.applyActiveWorkspace(user, companyId);
+
+		// Descobre qual storage estava usando (local ou session) para manter
+		const isSession = !!sessionStorage.getItem(STORAGE_KEY);
+		const storage = isSession ? sessionStorage : localStorage;
+		storage.setItem(STORAGE_KEY, JSON.stringify(updatedUser));
+
+		// Força um reload para garantir que todos os Services e Contexts busquem do novo companyId
+		window.location.href = '/#/app/dashboard';
+		window.location.reload();
 	},
 
 	loginWithEmail: async (
@@ -167,7 +279,7 @@ export const authService = {
 							) {
 								// Caso de inconsistência (Auth existe, mas senha não batia, porém tempPass bate)
 								throw new Error(
-									'Sua conta já existe (Auth). Use "Esqueci minha senha" para recuperar o acesso.',
+									'Sua conta já existe. Acesse via Google ou recupere sua senha.',
 								);
 							}
 							throw createErr;
@@ -177,12 +289,13 @@ export const authService = {
 					if (provErr.message?.includes('Sua conta já existe'))
 						throw provErr;
 					console.error('Erro ao verificar convite:', provErr);
+					throw provErr; // Rethrow to show the actual error to the user (e.g. permission-denied)
 				}
 			}
 
 			if (
 				err.message ===
-				'Sua conta já existe (Auth). Use "Esqueci minha senha" para recuperar o acesso.'
+				'Sua conta já existe. Acesse via Google ou recupere sua senha.'
 			) {
 				throw err;
 			}
@@ -206,7 +319,9 @@ export const authService = {
 			// Configura persistência do Firebase
 			await setPersistence(
 				auth,
-				rememberMe ? browserLocalPersistence : browserSessionPersistence,
+				rememberMe
+					? browserLocalPersistence
+					: browserSessionPersistence,
 			);
 
 			const provider = new GoogleAuthProvider();
@@ -219,7 +334,11 @@ export const authService = {
 			else localStorage.removeItem(STORAGE_KEY);
 
 			return user;
-		} catch (error) {
+		} catch (error: any) {
+			console.error('Erro detalhado no login com Google:', error);
+			if (error.message && error.message.includes('Acesso negado')) {
+				throw error; // Preserva o erro original sobre convite
+			}
 			throw new Error('Erro ao fazer login com Google.');
 		}
 	},
@@ -227,10 +346,10 @@ export const authService = {
 	logout: async () => {
 		try {
 			// Tenta desligar rede para evitar requisições pendentes após perder auth
-			await disableNetwork(db); 
+			await disableNetwork(db);
 			await signOut(auth);
 		} catch (e) {
-			console.error("Logout error", e);
+			console.error('Logout error', e);
 		}
 		localStorage.removeItem(STORAGE_KEY);
 		sessionStorage.removeItem(STORAGE_KEY);

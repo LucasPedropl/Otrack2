@@ -22,11 +22,13 @@ import { useTheme } from '../../../contexts/ThemeContext';
 import { Button } from '../../../components/ui/Button';
 import { BottomActionsBar } from '../../../components/layout/BottomActionsBar';
 import { usePermissions } from '../../../contexts/PermissionsContext';
+import { useToast } from '../../../contexts/ToastContext';
 
 const UsuariosPage: React.FC = () => {
 	const { currentTheme } = useTheme();
 	const { hasPermission } = usePermissions();
 	const location = useLocation();
+	const toast = useToast();
 
 	useEffect(() => {
 		const params = new URLSearchParams(location.search);
@@ -134,7 +136,7 @@ const UsuariosPage: React.FC = () => {
 
 		// 1. Prevent self-deletion
 		if (currentUser && currentUser.email === targetUser?.email) {
-			alert(
+			toast.error(
 				'Segurança: Você não pode excluir sua própria conta enquanto está logado.',
 			);
 			return;
@@ -152,10 +154,11 @@ const UsuariosPage: React.FC = () => {
 			newSelection.delete(deleteId);
 			setSelectedIds(newSelection);
 			await fetchData();
+			toast.success('Usuário excluído com sucesso.');
 			setDeleteId(null);
 		} catch (error) {
 			console.error('Error deleting user', error);
-			alert('Erro ao excluir usuário.');
+			toast.error('Erro ao excluir usuário.');
 		} finally {
 			setIsLoading(false);
 		}
@@ -163,9 +166,12 @@ const UsuariosPage: React.FC = () => {
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
+		if (isLoading) return;
 
 		if (!formData.profileId) {
-			alert('Por favor, selecione um Perfil de Acesso para o usuário.');
+			toast.error(
+				'Por favor, selecione um Perfil de Acesso para o usuário.',
+			);
 			return;
 		}
 
@@ -173,21 +179,32 @@ const UsuariosPage: React.FC = () => {
 		try {
 			const payload = { ...formData };
 
-			// Se a senha estiver vazia, removemos do payload para não sobrescrever com string vazia caso exista
+			// Se a senha estiver vazia, removemos do payload para não sobrescrever com string vazia caso exista, ou se a intenção for apenas Google
 			if (!payload.password) {
 				delete payload.password;
 			}
 
 			if (editingId) {
 				await userService.update(editingId, payload);
+				toast.success('Usuário atualizado com sucesso.');
 			} else {
 				await userService.add(payload as User);
+				if (!payload.password) {
+					toast.success(
+						'Usuário criado! O acesso deverá ser via Google ou Recuperação de Senha.',
+					);
+				} else {
+					toast.success(
+						'Usuário criado com sucesso! Senha temporária: ' +
+							payload.password,
+					);
+				}
 			}
 			handleCloseModal();
 			fetchData();
-		} catch (error) {
+		} catch (error: any) {
 			console.error(error);
-			alert('Erro ao salvar usuário');
+			toast.error(error.message || 'Erro ao salvar usuário');
 		} finally {
 			setIsLoading(false);
 		}
@@ -267,8 +284,8 @@ const UsuariosPage: React.FC = () => {
 		});
 
 		if (safeToDeleteIds.length < idsToDelete.length) {
-			alert(
-				'Você selecionou sua própria conta. Ela não será excluída para manter seu acesso.',
+			toast.info(
+				'Sua conta foi ignorada na exclusão para manter seu acesso.',
 			);
 		}
 
@@ -300,10 +317,11 @@ const UsuariosPage: React.FC = () => {
 			);
 			setSelectedIds(new Set());
 			await fetchData();
+			toast.success('Usuários selecionados excluídos.');
 			setIsBulkDeleteModalOpen(false);
 		} catch (error) {
 			console.error(error);
-			alert('Erro ao excluir alguns itens.');
+			toast.error('Erro ao excluir alguns itens.');
 		} finally {
 			setIsDeletingMultiple(false);
 		}
@@ -689,58 +707,6 @@ const UsuariosPage: React.FC = () => {
 									required
 									placeholder="Ex: joao@empresa.com"
 								/>
-							</div>
-
-							{/* NOVO CAMPO: SENHA PROVISÓRIA */}
-							<div>
-								<label
-									className="block text-sm mb-1"
-									style={{
-										color: currentTheme.colors
-											.textSecondary,
-									}}
-								>
-									Senha Provisória (Opcional)
-								</label>
-								<div className="relative">
-									<Lock
-										className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 opacity-40"
-										style={{
-											color: currentTheme.colors.text,
-										}}
-									/>
-									<input
-										type="text"
-										value={formData.password}
-										onChange={(e) =>
-											setFormData({
-												...formData,
-												password: e.target.value,
-											})
-										}
-										className={`${baseInputClass} pl-10`}
-										style={dynamicInputStyle}
-										placeholder="Deixe vazio para login Google apenas"
-									/>
-								</div>
-								<p
-									className="mt-1.5 text-[10px] flex items-start gap-1.5 opacity-70"
-									style={{
-										color: currentTheme.colors
-											.textSecondary,
-									}}
-								>
-									<Info
-										size={12}
-										className="mt-0.5 flex-shrink-0"
-									/>
-									<span>
-										Se deixado em branco, o usuário só
-										poderá acessar via <b>Login Google</b>.
-										Caso preenchido, ele poderá usar E-mail
-										e Senha.
-									</span>
-								</p>
 							</div>
 
 							<div className="relative" ref={profileRef}>

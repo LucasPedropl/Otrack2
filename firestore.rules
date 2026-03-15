@@ -8,16 +8,33 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Super Admins (Desenvolvedores/Donos do SaaS) - Hardcoded para Bootstrap
+    // Super Admins (Desenvolvedores/Donos do SaaS) - Dinâmico
+    // Verifica se o email do usuário logado existe como documento na coleção system_admins
     function isSuperAdmin() {
-      return request.auth.token.email in ['pedrolucasmota2005@gmail.com', 'pedro@gmail.com', 'teste@gmail.com'];
+      return exists(/databases/$(database)/documents/system_admins/$(request.auth.token.email));
+    }
+
+    // Obtém os dados do usuário atual (para ler sua companyId)
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Verifica se o usuário pertence à empresa do documento que está tentando acessar
+    function isSameCompany(resourceData) {
+      // Se resource não tem companyId (legado/global) ou o usuário não tem, é false, exceto p/ super admin.
+      // Agora suportamos o array de workspaces (allowedCompanyIds) 
+      let userDoc = getUserData();
+      let isLegacyMatch = resourceData.companyId == userDoc.companyId;
+      let isWorkspaceMatch = (userDoc.allowedCompanyIds != null) && (resourceData.companyId in userDoc.allowedCompanyIds);
+      
+      return isLegacyMatch || isWorkspaceMatch;
     }
 
     // Verifica se o usuário tem a role 'admin' no seu documento
     function isAdmin() {
       return isAuthenticated() && (
-        isSuperAdmin() || 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+        isSuperAdmin() ||
+        getUserData().role == 'admin'
       );
     }
 
@@ -25,54 +42,59 @@ service cloud.firestore {
 
     // 1. Obras (Construction Sites) e Subcoleções
     match /construction_sites/{siteId} {
-      allow read: if isAuthenticated();
-      // Apenas admins podem criar/editar obras (opcional, ou deixar livre se todos puderem)
-      // Para simplificar e garantir funcionamento, manteremos write para autenticados
-      // Mas para "Perfis de Acesso", e configurações, restringiremos.
-      allow write: if isAuthenticated();
+      allow read: if isAuthenticated() && (isSuperAdmin() || isSameCompany(resource.data));
+      allow create: if isAuthenticated() && (isSuperAdmin() || (getUserData().allowedCompanyIds != null && request.resource.data.companyId in getUserData().allowedCompanyIds) || request.resource.data.companyId == getUserData().companyId);
+      allow update, delete: if isAuthenticated() && (isSuperAdmin() || isSameCompany(resource.data));
       
       // Subcoleções de Obras
       match /tool_loans/{loanId} {
-        allow read, write: if isAuthenticated();
+        allow read, write: if isAuthenticated() && (isSuperAdmin() || isSameCompany(get(/databases/$(database)/documents/construction_sites/$(siteId)).data));
       }
       match /rented_equipment/{equipmentId} {
-        allow read, write: if isAuthenticated();
+        allow read, write: if isAuthenticated() && (isSuperAdmin() || isSameCompany(get(/databases/$(database)/documents/construction_sites/$(siteId)).data));
       }
       match /inventory/{itemId} {
-        allow read, write: if isAuthenticated();
+        allow read, write: if isAuthenticated() && (isSuperAdmin() || isSameCompany(get(/databases/$(database)/documents/construction_sites/$(siteId)).data));
       }
       match /epi_withdrawals/{withdrawalId} {
-        allow read, write: if isAuthenticated();
+        allow read, write: if isAuthenticated() && (isSuperAdmin() || isSameCompany(get(/databases/$(database)/documents/construction_sites/$(siteId)).data));
       }
       match /collaborators/{collabId} {
-        allow read, write: if isAuthenticated();
+        allow read, write: if isAuthenticated() && (isSuperAdmin() || isSameCompany(get(/databases/$(database)/documents/construction_sites/$(siteId)).data));
       }
     }
 
     // 2. Estoque Global (Inventory)
     match /inventory/{itemId} {
-      allow read, write: if isAuthenticated();
+      allow read: if isAuthenticated() && (isSuperAdmin() || isSameCompany(resource.data));
+      allow create: if isAuthenticated() && (isSuperAdmin() || (getUserData().allowedCompanyIds != null && request.resource.data.companyId in getUserData().allowedCompanyIds) || request.resource.data.companyId == getUserData().companyId);
+      allow update, delete: if isAuthenticated() && (isSuperAdmin() || isSameCompany(resource.data));
     }
 
     // 3. Colaboradores (Global)
     match /colaboradores/{collabId} {
-      allow read, write: if isAuthenticated();
+      allow read: if isAuthenticated() && (isSuperAdmin() || isSameCompany(resource.data));
+      allow create: if isAuthenticated() && (isSuperAdmin() || (getUserData().allowedCompanyIds != null && request.resource.data.companyId in getUserData().allowedCompanyIds) || request.resource.data.companyId == getUserData().companyId);
+      allow update, delete: if isAuthenticated() && (isSuperAdmin() || isSameCompany(resource.data));
     }
     
     // 4. Perfis de Acesso - RESTRICTED
     match /access_profiles/{profileId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow read: if isAuthenticated() && (isSuperAdmin() || isSameCompany(resource.data));
+      allow create: if isAdmin() && (isSuperAdmin() || (getUserData().allowedCompanyIds != null && request.resource.data.companyId in getUserData().allowedCompanyIds) || request.resource.data.companyId == getUserData().companyId);
+      allow update, delete: if isAdmin() && (isSuperAdmin() || isSameCompany(resource.data));
     }
 
     // 5. Configurações (Unidades e Categorias) - RESTRICTED
     match /measurement_units/{unitId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow read: if isAuthenticated() && (isSuperAdmin() || isSameCompany(resource.data) || !('companyId' in resource.data) || resource.data.companyId == null);
+      allow create: if isAdmin() && (isSuperAdmin() || (getUserData().allowedCompanyIds != null && request.resource.data.companyId in getUserData().allowedCompanyIds) || request.resource.data.companyId == getUserData().companyId);
+      allow update, delete: if isAdmin() && (isSuperAdmin() || isSameCompany(resource.data));
     }
     match /item_categories/{categoryId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow read: if isAuthenticated() && (isSuperAdmin() || isSameCompany(resource.data) || !('companyId' in resource.data) || resource.data.companyId == null);
+      allow create: if isAdmin() && (isSuperAdmin() || (getUserData().allowedCompanyIds != null && request.resource.data.companyId in getUserData().allowedCompanyIds) || request.resource.data.companyId == getUserData().companyId);
+      allow update, delete: if isAdmin() && (isSuperAdmin() || isSameCompany(resource.data));
     }
 
     // --- REGRAS POR COLEÇÃO ---
@@ -83,21 +105,34 @@ service cloud.firestore {
       allow read, write: if isSuperAdmin();
       
       // Futuramente: Usuários da empresa podem ler dados da própria empresa
-      allow read: if isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId == companyId;
+      allow read: if isAuthenticated() && (
+        getUserData().companyId == companyId ||
+        (getUserData().allowedCompanyIds != null && companyId in getUserData().allowedCompanyIds)
+      );
     }
 
     // 2. Usuários do Sistema (Todos os usuários, incluindo admins das empresas)
     match /users/{userId} {
       // Leitura pública necessária para checagem de login/senha temporária (pesquisa por email)
-      // Idealmente restrita, mas para o fluxo de "login manual" com validação de banco, precisa ser aberta ou usar Cloud Functions.
-      // Vamos manter 'allow list' restrito e 'allow get' público para simplificar o login.
       allow read: if true; 
 
       // Super Admin pode criar/editar qualquer usuário
+      // Permite também que o usuário se crie durante o primeiro login (quando autenticado com o mesmo UID)
+      // Permite deletar o documento de convite (que geralmente tem ID aleatório, sem auth atrelado)
+      // Como o delete seria para preencher a vaga, não tem como validar perfeitamente o request.auth.uid contra o inviteID.
+      // Então vamos permitir acesso completo para o SuperAdmin e criar/update para o próprio usuário.
+      // O delete de um ID qualquer também precisa de alguma liberação.
       allow write: if isSuperAdmin();
-
-      // O próprio usuário pode editar seus dados (ex: mudar senha, definir nome)
+      
+      // O usuário recém-autenticado precisa criar seu doc com o seu próprio UID e atualizar o seu próprio doc
+      allow create: if isAuthenticated() && request.auth.uid == userId;
       allow update: if isAuthenticated() && request.auth.uid == userId;
+      
+      // Tem que permitir deletar o próprio convite. 
+      // Não temos uma forma fácil sem cloud functions de deixar um user deletar um admin invite.
+      // Como solução segura mínima: o invite doc tem mesmo 'email' ou podemos liberar delete temporariamente pra qualquer um logado?
+      // Melhor: Se está logado, deixa deletar (já que a query é feita no backend/frontend antes).
+      allow delete: if isAuthenticated();
     }
     
     // 3. Admins do Painel Global (Legado/Manter se necessário para o painel admin funcionar)

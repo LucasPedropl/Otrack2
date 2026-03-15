@@ -390,6 +390,7 @@ const PerfisPage: React.FC = () => {
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
+		if (isLoading) return;
 		if (!name.trim()) return alert('Nome é obrigatório');
 
 		setIsLoading(true);

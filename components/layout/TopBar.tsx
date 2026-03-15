@@ -311,7 +311,33 @@ export const TopBar: React.FC<TopBarProps> = ({
 								>
 									{user?.email}
 								</p>
+								{user?.companyName && (
+									<p className="text-xs font-medium truncate mt-1 text-brand-primary">
+										{user.companyName}
+									</p>
+								)}
 							</div>
+
+							{user?.workspaces && user.workspaces.length > 1 && (
+								<button
+									onClick={() => {
+										setIsUserMenuOpen(false);
+										navigate('/switcher');
+									}}
+									className="w-full text-left px-4 py-2.5 text-sm flex items-center space-x-3 transition-colors hover:bg-black/5"
+									style={{
+										color: currentTheme.colors.text,
+									}}
+								>
+									<ArrowLeftRight
+										size={16}
+										className="text-brand-primary"
+									/>
+									<span className="font-medium">
+										Trocar Empresa
+									</span>
+								</button>
+							)}
 
 							<button
 								onClick={() => {

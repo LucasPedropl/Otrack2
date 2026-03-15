@@ -5,7 +5,7 @@ import React, {
 	useEffect,
 	useCallback,
 } from 'react';
-import { ConstructionSite } from '../types';
+import type { ConstructionSite } from '../types';
 import { constructionService } from '../services/constructionService';
 import { authService } from '../services/authService';
 
